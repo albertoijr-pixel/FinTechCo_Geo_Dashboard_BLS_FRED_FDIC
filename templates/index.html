@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinTechCo Geographic Targeting Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.min.js"></script>
+  <style>
+    body { background: #0f1623; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; }
+
+    .dashboard-header {
+      background: linear-gradient(135deg, #1a2744 0%, #0d1b36 100%);
+      border-bottom: 1px solid #2d4a7a;
+      padding: 18px 28px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .dashboard-header h1 { font-size: 1.5rem; font-weight: 700; color: #63b3ed; margin: 0; }
+    .dashboard-header p  { font-size: 0.8rem; color: #718096; margin: 2px 0 0; }
+    .header-sources { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+    .sources-label { font-size: 0.78rem; color: #6a80a0; text-transform: uppercase; letter-spacing: 0.07em; }
+    .sources-pills { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .source-pill {
+      font-size: 0.88rem; font-weight: 600; color: #c8daf0;
+      background: rgba(255,255,255,0.11); border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 20px; padding: 7px 18px; text-decoration: none; white-space: nowrap;
+      transition: color 0.15s, background 0.15s;
+    }
+    .source-pill:hover { color: #fff; background: rgba(255,255,255,0.2); }
+
+
+    .card-panel {
+      background: #161f30;
+      border: 1px solid #2a3a5c;
+      border-radius: 10px;
+    }
+
+    /* filter bar */
+    .filter-bar { padding: 14px 20px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+    .filter-bar label { font-size: 0.78rem; color: #90a0b7; white-space: nowrap; }
+    .score-val { font-weight: 700; color: #63b3ed; min-width: 28px; text-align: center; }
+    #scoreSlider { accent-color: #4299e1; flex: 1; min-width: 140px; }
+    .btn-reset {
+      background: #2d3748; border: 1px solid #4a5568; color: #a0aec0;
+      font-size: 0.78rem; padding: 5px 14px; border-radius: 6px; cursor: pointer;
+    }
+    .btn-reset:hover { background: #3d4a5e; color: #e2e8f0; }
+
+    /* map — fill the card panel, which fills the row height set by the taller table column */
+    .col-lg-7 > .card-panel { height: 100%; }
+    #map { height: calc(100% - 16px); min-height: 250px; border-radius: 8px; overflow: hidden; background: #0d1523; }
+
+    /* table panel */
+    .table-panel { display: flex; flex-direction: column; height: 100%; }
+    .table-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid #2a3a5c; }
+    .table-toolbar span { font-size: 0.78rem; color: #718096; }
+    .btn-export {
+      background: #2b6cb0; border: none; color: #fff; font-size: 0.76rem;
+      padding: 5px 14px; border-radius: 6px; cursor: pointer;
+    }
+    .btn-export:hover { background: #3182ce; }
+    .table-scroll { overflow-y: auto; height: calc(33vh + 20px); min-height: 200px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    thead th {
+      position: sticky; top: 0; background: #1e2d45; color: #90b8d8;
+      padding: 8px 10px; text-align: left; cursor: pointer; user-select: none;
+      border-bottom: 1px solid #2a3a5c; white-space: nowrap;
+    }
+    thead th:hover { background: #263a55; }
+    thead th .sort-arrow { margin-left: 4px; opacity: 0.4; font-size: 0.7rem; }
+    thead th.active .sort-arrow { opacity: 1; color: #63b3ed; }
+    tbody tr { border-bottom: 1px solid #1e2d45; transition: background 0.12s; }
+    tbody tr:hover { background: #1c2d45; }
+    tbody td { padding: 7px 10px; color: #cbd5e0; }
+    .badge-sector {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .badge-Tech       { background: #1a3a5c; color: #63b3ed; }
+    .badge-Healthcare { background: #1a3d2e; color: #68d391; }
+    .badge-Legal      { background: #3d2b1a; color: #f6ad55; }
+    .badge-Unknown    { background: #2d3748; color: #718096; }
+
+    /* chat */
+    .chat-container { padding: 14px; }
+    .chat-messages {
+      height: 16vh; min-height: 120px; max-height: 200px; overflow-y: auto; margin-bottom: 10px;
+      background: #0d1523; border-radius: 8px; padding: 12px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .msg { max-width: 80%; padding: 9px 13px; border-radius: 10px; font-size: 0.82rem; line-height: 1.45; word-break: break-word; }
+    .msg-user  { align-self: flex-end; background: #2b4a8c; color: #e2e8f0; border-bottom-right-radius: 2px; }
+    .msg-claude { align-self: flex-start; background: #1e2d45; color: #cbd5e0; border-bottom-left-radius: 2px; }
+    .msg-label { font-size: 0.65rem; color: #4a6080; margin-bottom: 3px; }
+    .msg-thinking { opacity: 0.5; font-style: italic; }
+    .chat-input-row { display: flex; gap: 8px; }
+    #chatInput {
+      flex: 1; background: #0d1523; border: 1px solid #2a3a5c; color: #e2e8f0;
+      border-radius: 8px; padding: 9px 14px; font-size: 0.82rem; outline: none;
+    }
+    #chatInput:focus { border-color: #4299e1; }
+    .btn-send {
+      background: #3182ce; border: none; color: #fff; font-size: 0.82rem;
+      padding: 8px 20px; border-radius: 8px; cursor: pointer;
+    }
+    .btn-send:hover { background: #4299e1; }
+    .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
+    .filter-notice {
+      font-size: 0.7rem; margin-top: 5px; padding: 4px 8px;
+      background: #1a3d2e; border-radius: 4px; color: #68d391; display: inline-block;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="dashboard-header">
+  <div class="header-left">
+    <h1>FinTechCo Geographic Targeting Dashboard</h1>
+    <p>US state-level scoring by deposit concentration, non-interest-bearing deposits, and professional wage density</p>
+  </div>
+  <div class="header-sources">
+    <span class="sources-label">Data Sources</span>
+    <div class="sources-pills">
+      <a class="source-pill" href="https://data.bls.gov" target="_blank" rel="noopener">BLS — data.bls.gov</a>
+      <a class="source-pill" href="https://fred.stlouisfed.org" target="_blank" rel="noopener">FRED — fred.stlouisfed.org</a>
+      <a class="source-pill" href="https://banks.data.fdic.gov" target="_blank" rel="noopener">FDIC — banks.data.fdic.gov</a>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid px-3 py-2">
+
+  <!-- Filter bar -->
+  <div class="card-panel filter-bar mb-2">
+    <label for="scoreSlider">Min Target Score</label>
+    <input type="range" id="scoreSlider" min="0" max="100" value="0" step="1" />
+    <span class="score-val" id="scoreDisplay">0</span>
+    <button class="btn-reset" id="resetBtn">Reset Filters</button>
+    <span style="font-size:0.75rem; color:#4a6080; margin-left:8px;" id="stateCount"></span>
+  </div>
+
+  <!-- Map + Table -->
+  <div class="row g-3 mb-2">
+    <div class="col-lg-7">
+      <div class="card-panel p-2">
+        <div id="map"></div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card-panel table-panel">
+        <div class="table-toolbar">
+          <span id="rowCount">— states</span>
+          <button class="btn-export" id="exportBtn">Export CSV</button>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th data-col="rank">#<span class="sort-arrow">&#9650;</span></th>
+                <th data-col="state">State<span class="sort-arrow">&#9650;</span></th>
+                <th data-col="target_score">Score<span class="sort-arrow">&#9650;</span></th>
+                <th data-col="dominant_sector">Sector<span class="sort-arrow">&#9650;</span></th>
+                <th data-col="total_deposits_millions">Deposits<span class="sort-arrow">&#9650;</span></th>
+                <th data-col="max_annual_wage">Top Wage<span class="sort-arrow">&#9650;</span></th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="card-panel" id="chatPanel">
+    <div class="chat-container">
+      <div id="chatPanelHeader" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div style="font-size:0.8rem; color:#63b3ed; font-weight:600;">AI Analyst — Ask about the data or request filters</div>
+        <button class="btn-export" id="exportPdfBtn">Export Chat as PDF</button>
+      </div>
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="e.g. Show me Tech-dominant states with score above 40..." />
+        <button class="btn-send" id="sendBtn">Send</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+const STATE_ABBR = {
+  'ALABAMA':'AL','ALASKA':'AK','ARIZONA':'AZ','ARKANSAS':'AR','CALIFORNIA':'CA',
+  'COLORADO':'CO','CONNECTICUT':'CT','DELAWARE':'DE','FLORIDA':'FL','GEORGIA':'GA',
+  'HAWAII':'HI','IDAHO':'ID','ILLINOIS':'IL','INDIANA':'IN','IOWA':'IA',
+  'KANSAS':'KS','KENTUCKY':'KY','LOUISIANA':'LA','MAINE':'ME','MARYLAND':'MD',
+  'MASSACHUSETTS':'MA','MICHIGAN':'MI','MINNESOTA':'MN','MISSISSIPPI':'MS',
+  'MISSOURI':'MO','MONTANA':'MT','NEBRASKA':'NE','NEVADA':'NV','NEW HAMPSHIRE':'NH',
+  'NEW JERSEY':'NJ','NEW MEXICO':'NM','NEW YORK':'NY','NORTH CAROLINA':'NC',
+  'NORTH DAKOTA':'ND','OHIO':'OH','OKLAHOMA':'OK','OREGON':'OR',
+  'PENNSYLVANIA':'PA','RHODE ISLAND':'RI','SOUTH CAROLINA':'SC','SOUTH DAKOTA':'SD',
+  'TENNESSEE':'TN','TEXAS':'TX','UTAH':'UT','VERMONT':'VT','VIRGINIA':'VA',
+  'WASHINGTON':'WA','WEST VIRGINIA':'WV','WISCONSIN':'WI','WYOMING':'WY',
+  'DISTRICT OF COLUMBIA':'DC'
+};
+
+let allData = [];
+let currentData = [];
+let currentFilters = { min_score: 0, states: [], sectors: [] };
+let sortCol = 'target_score';
+let sortAsc = false;
+
+// ── Formatting helpers ──────────────────────────────────────────
+function fmtDeposits(v) {
+  if (v == null) return '–';
+  if (v >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'T';
+  if (v >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'B';
+  return '$' + v.toFixed(0) + 'M';
+}
+function fmtWage(v) {
+  if (v == null) return '–';
+  return '$' + Math.round(v / 1000) + 'K';
+}
+function fmtScore(v) { return v != null ? (+v).toFixed(2) : '–'; }
+function titleCase(s) {
+  if (!s) return s;
+  return s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ── Fetch initial data ──────────────────────────────────────────
+async function loadData() {
+  const res = await fetch('/api/data');
+  allData = await res.json();
+  currentData = [...allData];
+  renderAll();
+}
+
+// ── Apply filters ───────────────────────────────────────────────
+function applyFilters(filters) {
+  currentFilters = Object.assign({}, currentFilters, filters);
+
+  // Sync slider UI if min_score came from chat
+  if (filters.min_score !== undefined) {
+    document.getElementById('scoreSlider').value = filters.min_score;
+    document.getElementById('scoreDisplay').textContent = filters.min_score;
+  }
+
+  let data = [...allData];
+  if (currentFilters.min_score > 0)
+    data = data.filter(r => r.target_score >= currentFilters.min_score);
+  if (currentFilters.states && currentFilters.states.length)
+    data = data.filter(r => currentFilters.states.includes(r.state.toUpperCase()));
+  if (currentFilters.sectors && currentFilters.sectors.length)
+    data = data.filter(r => currentFilters.sectors.includes(r.dominant_sector));
+
+  currentData = data;
+  renderAll();
+}
+
+function renderAll() {
+  renderMap();
+  renderTable();
+  document.getElementById('stateCount').textContent =
+    currentData.length === allData.length
+      ? '50 states and District of Columbia'
+      : currentData.length + ' of 50 states and D.C. shown';
+}
+
+// ── Choropleth map ──────────────────────────────────────────────
+function renderMap() {
+  // Filter out DC for choropleth (locationmode='USA-states' doesn't support it)
+  const mapData = currentData.filter(r => r.state !== 'DISTRICT OF COLUMBIA');
+  const locations = mapData.map(r => STATE_ABBR[r.state] || '');
+  const scores    = mapData.map(r => r.target_score);
+  const texts     = mapData.map(r =>
+    `<b>${titleCase(r.state)}</b><br>` +
+    `Score: <b>${fmtScore(r.target_score)}</b><br>` +
+    `Sector: ${r.dominant_sector || '–'}<br>` +
+    `Deposits: ${fmtDeposits(r.total_deposits_millions)}<br>` +
+    `Top Wage: ${fmtWage(r.max_annual_wage)}`
+  );
+
+  const trace = {
+    type: 'choropleth',
+    locationmode: 'USA-states',
+    locations,
+    z: scores,
+    text: texts,
+    hoverinfo: 'text',
+    colorscale: [
+      [0,   '#0d1b36'],
+      [0.2, '#1a3a5c'],
+      [0.5, '#2563a8'],
+      [0.75,'#3b82c4'],
+      [1,   '#63e0ff'],
+    ],
+    colorbar: {
+      title: { text: 'Score', font: { color: '#90a0b7', size: 11 } },
+      tickfont: { color: '#90a0b7', size: 10 },
+      bgcolor: 'rgba(0,0,0,0)',
+      bordercolor: '#2a3a5c',
+      thickness: 14,
+      len: 0.7,
+    },
+    marker: { line: { color: '#1e3050', width: 0.8 } },
+  };
+
+  const layout = {
+    geo: {
+      scope: 'usa',
+      bgcolor: '#0d1523',
+      lakecolor: '#0d1523',
+      landcolor: '#141f33',
+      showlakes: true,
+      showland: true,
+      subunitcolor: '#1e3050',
+      projection: { type: 'albers usa' },
+    },
+    paper_bgcolor: '#0d1523',
+    plot_bgcolor:  '#0d1523',
+    margin: { t: 0, b: 0, l: 0, r: 0 },
+    font: { color: '#e2e8f0' },
+  };
+
+  Plotly.react('map', [trace], layout, { responsive: true, displayModeBar: false });
+}
+
+// ── Sortable table ──────────────────────────────────────────────
+function renderTable() {
+  const sorted = [...currentData].sort((a, b) => {
+    let av = a[sortCol], bv = b[sortCol];
+    if (sortCol === 'rank') { av = currentData.indexOf(a); bv = currentData.indexOf(b); }
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === 'string') return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sortAsc ? av - bv : bv - av;
+  });
+
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = sorted.map((r, i) => {
+    const abbr = STATE_ABBR[r.state] || r.state;
+    const sector = r.dominant_sector || 'Unknown';
+    return `<tr>
+      <td style="color:#4a6080">${i + 1}</td>
+      <td><span title="${titleCase(r.state)}">${abbr}</span><span style="color:#4a6080;font-size:0.7rem;margin-left:4px">${titleCase(r.state).substring(0,12)}</span></td>
+      <td style="color:#63b3ed;font-weight:600">${fmtScore(r.target_score)}</td>
+      <td><span class="badge-sector badge-${sector}">${sector}</span></td>
+      <td>${fmtDeposits(r.total_deposits_millions)}</td>
+      <td>${fmtWage(r.max_annual_wage)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('rowCount').textContent =
+    sorted.length === allData.length
+      ? '50 states and District of Columbia'
+      : sorted.length + ' of 50 states and D.C.';
+
+  // Update sort arrow highlights
+  document.querySelectorAll('thead th').forEach(th => {
+    const col = th.dataset.col;
+    th.classList.toggle('active', col === sortCol);
+    const arrow = th.querySelector('.sort-arrow');
+    if (col === sortCol) arrow.innerHTML = sortAsc ? '&#9650;' : '&#9660;';
+    else arrow.innerHTML = '&#9650;';
+  });
+}
+
+// ── Table sort listeners ────────────────────────────────────────
+document.querySelectorAll('thead th').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (sortCol === col) sortAsc = !sortAsc;
+    else { sortCol = col; sortAsc = col === 'rank' || col === 'state'; }
+    renderTable();
+  });
+});
+
+// ── Slider ─────────────────────────────────────────────────────
+document.getElementById('scoreSlider').addEventListener('input', function() {
+  document.getElementById('scoreDisplay').textContent = this.value;
+  applyFilters({ min_score: parseFloat(this.value) });
+});
+
+// ── Reset ───────────────────────────────────────────────────────
+document.getElementById('resetBtn').addEventListener('click', () => {
+  document.getElementById('scoreSlider').value = 0;
+  document.getElementById('scoreDisplay').textContent = '0';
+  currentFilters = { min_score: 0, states: [], sectors: [] };
+  currentData = [...allData];
+  renderAll();
+});
+
+// ── Export ──────────────────────────────────────────────────────
+document.getElementById('exportBtn').addEventListener('click', async () => {
+  const res = await fetch('/api/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(currentFilters),
+  });
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'target_scores_filtered.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ── Chat ────────────────────────────────────────────────────────
+function appendMessage(role, html, subNote) {
+  const box = document.getElementById('chatMessages');
+  const wrap = document.createElement('div');
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.alignItems = role === 'user' ? 'flex-end' : 'flex-start';
+
+  const label = document.createElement('div');
+  label.className = 'msg-label';
+  label.textContent = role === 'user' ? 'You' : 'Claude';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg msg-' + (role === 'user' ? 'user' : 'claude');
+  bubble.innerHTML = html;
+  bubble.dataset.time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+
+  wrap.appendChild(label);
+  wrap.appendChild(bubble);
+  if (subNote) {
+    const note = document.createElement('div');
+    note.className = 'filter-notice';
+    note.textContent = subNote;
+    wrap.appendChild(note);
+  }
+  box.appendChild(wrap);
+  box.scrollTop = box.scrollHeight;
+  return bubble;
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const btn   = document.getElementById('sendBtn');
+  const msg   = input.value.trim();
+  if (!msg) return;
+
+  input.value = '';
+  btn.disabled = true;
+
+  appendMessage('user', escapeHtml(msg));
+
+  // Context = currently visible data (trimmed to key fields for brevity)
+  const context = JSON.stringify(currentData.map(r => ({
+    state: r.state,
+    target_score: r.target_score,
+    dominant_sector: r.dominant_sector,
+    total_deposits_millions: r.total_deposits_millions,
+    nonint_per_inst: r.nonint_per_inst,
+    max_annual_wage: r.max_annual_wage,
+  })));
+
+  const thinkingBubble = appendMessage('claude', '<span class="msg-thinking">Thinking...</span>');
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, context }),
+    });
+    const data = await res.json();
+
+    let subNote = null;
+    if (data.filter_command) {
+      const fc = data.filter_command;
+      const newFilters = {};
+      if (fc.states  && fc.states.length)  newFilters.states  = fc.states.map(s => s.toUpperCase());
+      if (fc.sectors && fc.sectors.length) newFilters.sectors = fc.sectors;
+      if (fc.min_score != null)            newFilters.min_score = fc.min_score;
+      applyFilters(newFilters);
+      subNote = 'Filters applied to map and table.';
+    }
+
+    thinkingBubble.innerHTML = escapeHtml(data.response || 'No response.').replace(/\n/g, '<br>');
+    if (subNote) {
+      const note = document.createElement('div');
+      note.className = 'filter-notice';
+      note.textContent = subNote;
+      thinkingBubble.parentElement.appendChild(note);
+    }
+  } catch (err) {
+    thinkingBubble.innerHTML = '<span style="color:#fc8181">Error: ' + escapeHtml(String(err)) + '</span>';
+  }
+
+  btn.disabled = false;
+  document.getElementById('chatMessages').scrollTop = 9999;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.getElementById('sendBtn').addEventListener('click', sendChat);
+document.getElementById('chatInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+});
+
+document.getElementById('exportPdfBtn').addEventListener('click', () => {
+  const messages = [];
+  document.querySelectorAll('#chatMessages > div').forEach(wrap => {
+    const bubble = wrap.querySelector('.msg');
+    if (!bubble) return;
+    const text = (bubble.innerText || bubble.textContent || '').trim();
+    if (!text || text === 'Thinking...') return;
+    messages.push({ text, time: bubble.dataset.time || '', isUser: bubble.classList.contains('msg-user') });
+  });
+
+  if (!messages.length) { alert('No messages to export yet.'); return; }
+
+  const btn = document.getElementById('exportPdfBtn');
+  btn.textContent = 'Generating…';
+  btn.disabled = true;
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+  // Convert **bold** spans into pdfmake inline text runs
+  function parseInline(text) {
+    const parts = text.split(/(\*\*[^*]+\*\*)/);
+    if (parts.length === 1) return text;
+    return parts.filter(p => p !== '').map(p => {
+      const m = p.match(/^\*\*(.+)\*\*$/);
+      return m ? { text: m[1], bold: true } : { text: p };
+    });
+  }
+
+  // Convert markdown-like AI response into structured pdfmake nodes
+  function parseResponse(rawText) {
+    const nodes = [];
+    let listItems = null;
+
+    const flushList = () => {
+      if (listItems) {
+        nodes.push({ ul: listItems, margin: [8, 0, 0, 8], fontSize: 10.5, color: '#2d3748', lineHeight: 1.6 });
+        listItems = null;
+      }
+    };
+
+    for (const raw of rawText.split('\n')) {
+      const line = raw.trim();
+      if (!line) { flushList(); continue; }
+
+      // Full-line **SECTION HEADING**
+      const headingMatch = line.match(/^\*\*(.+)\*\*$/);
+      if (headingMatch) {
+        flushList();
+        nodes.push({ text: headingMatch[1], bold: true, fontSize: 11.5, color: '#1a2744', margin: [0, 12, 0, 3] });
+        nodes.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: 467, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e0' }], margin: [0, 0, 0, 6] });
+        continue;
+      }
+
+      // Bullet point: •, -, or *
+      const bulletMatch = line.match(/^[•\-\*]\s+(.*)/);
+      if (bulletMatch) {
+        if (!listItems) listItems = [];
+        listItems.push({ text: parseInline(bulletMatch[1]), color: '#2d3748', lineHeight: 1.6 });
+        continue;
+      }
+
+      flushList();
+      nodes.push({ text: parseInline(line), fontSize: 10.5, color: '#2d3748', lineHeight: 1.65, margin: [0, 0, 0, 5] });
+    }
+
+    flushList();
+    return nodes;
+  }
+
+  function promptBlock(m) {
+    return {
+      stack: [
+        {
+          columns: [
+            { text: 'PROMPT', fontSize: 7.5, bold: true, color: '#2563a8', characterSpacing: 1.5 },
+            { text: m.time, fontSize: 7.5, color: '#94a3b8', alignment: 'right' }
+          ],
+          margin: [0, 0, 0, 5]
+        },
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 467, y2: 0, lineWidth: 1, lineColor: '#bfdbfe' }], margin: [0, 0, 0, 9] },
+        { text: m.text, fontSize: 10.5, color: '#1e3a8a', lineHeight: 1.65, italics: true }
+      ],
+      margin: [0, 0, 0, 20]
+    };
+  }
+
+  function responseBlock(m) {
+    return {
+      stack: [
+        {
+          columns: [
+            { text: 'AI RESPONSE FROM CLAUDE', fontSize: 7.5, bold: true, color: '#374151', characterSpacing: 1.5 },
+            { text: m.time, fontSize: 7.5, color: '#94a3b8', alignment: 'right' }
+          ],
+          margin: [0, 0, 0, 5]
+        },
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 467, y2: 0, lineWidth: 1, lineColor: '#d1d5db' }], margin: [0, 0, 0, 10] },
+        ...parseResponse(m.text),
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 467, y2: 0, lineWidth: 0.5, lineColor: '#e5e7eb', dash: { length: 4 } }], margin: [0, 14, 0, 0] }
+      ],
+      margin: [0, 0, 0, 26]
+    };
+  }
+
+  const docDef = {
+    pageSize: 'A4',
+    pageMargins: [48, 48, 48, 56],
+    footer: (cur, total) => ({
+      text: `FinTechCo Geographic Targeting Dashboard  ·  Confidential  ·  Page ${cur} of ${total}`,
+      fontSize: 7.5, color: '#9ca3af', alignment: 'center', margin: [0, 10, 0, 0]
+    }),
+    content: [
+      {
+        table: { widths: ['*'], body: [[{
+          stack: [
+            { text: 'FINTECHCO', fontSize: 8.5, bold: true, color: '#63b3ed', characterSpacing: 2 },
+            { text: 'AI Analyst Session Export', fontSize: 17, bold: true, color: '#ffffff', margin: [0, 5, 0, 3] },
+            { text: 'Geographic Targeting Dashboard', fontSize: 9.5, color: '#90a0b7' }
+          ],
+          fillColor: '#1a2744', border: [false, false, false, false], margin: [20, 20, 20, 20]
+        }]] },
+        layout: 'noBorders', margin: [0, 0, 0, 0]
+      },
+      {
+        table: { widths: ['*', 'auto'], body: [[
+          { text: `Generated: ${dateStr} at ${timeStr}`, fontSize: 8.5, color: '#64748b', fillColor: '#f8fafc', border: [false, false, false, false], margin: [20, 10, 0, 10] },
+          { text: `${messages.length} message${messages.length !== 1 ? 's' : ''}`, fontSize: 8.5, color: '#64748b', fillColor: '#f8fafc', border: [false, false, false, false], margin: [0, 10, 20, 10], alignment: 'right' }
+        ]] },
+        layout: 'noBorders', margin: [0, 0, 0, 30]
+      },
+      ...messages.map(m => m.isUser ? promptBlock(m) : responseBlock(m))
+    ]
+  };
+
+  pdfMake.createPdf(docDef).download(
+    `FinTechCo-AI-Session-${now.toISOString().slice(0, 10)}.pdf`,
+    () => { btn.textContent = 'Export Chat as PDF'; btn.disabled = false; }
+  );
+});
+
+// ── Bootstrap ───────────────────────────────────────────────────
+loadData();
+</script>
+
+</body>
+</html>
