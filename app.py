@@ -32,6 +32,11 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/data-model')
+def data_model():
+    return render_template('data_model.html')
+
+
 @app.route('/api/data')
 def get_data():
     df = load_data()

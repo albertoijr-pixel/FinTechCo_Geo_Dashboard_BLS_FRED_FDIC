@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinTechCo — Data Model</title>
+  <style>
+    :root {
+      --bg:        #0f1623;
+      --surface:   #161f30;
+      --surface2:  #1e2d45;
+      --border:    #2a3a5c;
+      --text:      #e2e8f0;
+      --muted:     #718096;
+      --blue:      #3b82f6;
+      --amber:     #f59e0b;
+      --slate:     #64748b;
+      --purple:    #a78bfa;
+      --cyan:      #22d3ee;
+      --indigo:    #818cf8;
+      --green:     #34d399;
+      --gold:      #fbbf24;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+    /* ── Header ── */
+    .ph {
+      background: linear-gradient(135deg,#1a2744,#0d1b36);
+      border-bottom: 1px solid #2d4a7a;
+      padding: 14px 28px;
+      display: flex; justify-content: space-between; align-items: center;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .ph h1 { font-size: 1.05rem; font-weight: 700; color: #63b3ed; }
+    .ph p  { font-size: 0.72rem; color: #718096; margin-top: 2px; }
+    .back  {
+      color: #63b3ed; font-size: 0.78rem; text-decoration: none; opacity: 0.75;
+      background: rgba(99,179,237,0.1); border: 1px solid rgba(99,179,237,0.25);
+      padding: 6px 14px; border-radius: 6px; transition: opacity 0.15s, background 0.15s;
+    }
+    .back:hover { opacity: 1; background: rgba(99,179,237,0.18); }
+
+    /* ── Canvas ── */
+    .canvas { padding: 22px 28px 48px; max-width: 980px; margin: 0 auto; }
+
+    /* ── Layer label ── */
+    .llabel {
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.14em;
+      color: #3a4a64; text-transform: uppercase;
+      margin-bottom: 9px; margin-top: 4px;
+    }
+
+    /* ── Card base ── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .card-body { padding: 12px 16px 14px; }
+    .section-tag {
+      font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: #3a4a64; margin: 9px 0 5px;
+    }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block; font-size: 0.65rem; font-weight: 700;
+      letter-spacing: 0.07em; padding: 2px 9px; border-radius: 4px; margin-bottom: 7px;
+    }
+    .badge-bls    { background:#1a3a5c; color:var(--blue); }
+    .badge-fdic   { background:#3d2b1a; color:var(--amber); }
+    .badge-fred   { background:#252d3a; color:var(--slate); }
+    .badge-join   { background:#2d1f5c; color:var(--purple); }
+    .badge-feat   { background:#0e3a44; color:var(--cyan); }
+    .badge-norm   { background:#1e1b4b; color:var(--indigo); }
+    .badge-score  { background:#3d2a00; color:var(--gold); }
+    .badge-output { background:#064e3b; color:var(--green); }
+
+    /* ── Source cards ── */
+    .sources { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .sc-top  { padding: 11px 14px 9px; border-bottom: 1px solid var(--border); }
+    .sc-name { font-size: 0.78rem; font-weight: 600; color: var(--text); }
+    .sc-url  { font-size: 0.65rem; color: #4a6080; font-family: monospace; margin-top: 3px; }
+    .sc-auth { font-size: 0.65rem; color: #4a6080; margin-top: 2px; }
+    .card.bls  { border-top: 3px solid var(--blue); }
+    .card.fdic { border-top: 3px solid var(--amber); }
+    .card.fred { border-top: 3px solid #3a4a60; opacity: 0.7; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .chip {
+      display: inline-block; font-size: 0.64rem; padding: 2px 8px;
+      border-radius: 4px; font-family: monospace;
+    }
+    .chip-bls  { background:#1a3a5c; color:#90bdea; }
+    .chip-fdic { background:#3d2b1a; color:#f6b96b; }
+    .chip-fred { background:#252d3a; color:#64748b; }
+
+    .inactive-note {
+      font-size: 0.66rem; color: #fc8181; margin-top: 8px;
+      background: #2d1515; border-radius: 5px; padding: 6px 10px; line-height: 1.55;
+    }
+
+    /* ── Connector ── */
+    .connector { display: flex; justify-content: center; margin: 2px 0; }
+
+    /* ── Flow cards ── */
+    .flow-card { border-radius: 10px; padding: 14px 18px; }
+    .flow-card.join   { background:var(--surface); border:1px solid #3d2d6a; border-left:4px solid var(--purple); }
+    .flow-card.feat   { background:var(--surface); border:1px solid #0e3a44; border-left:4px solid var(--cyan); }
+    .flow-card.norm   { background:var(--surface); border:1px solid #1e1b4b; border-left:4px solid var(--indigo); }
+    .flow-card.score  { background:var(--surface); border:1px solid #4a3000; border-left:4px solid var(--gold); }
+    .flow-card.output { background:var(--surface); border:1px solid #1a4a3a; border-left:4px solid var(--green); }
+
+    /* JOIN */
+    .join-body { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-top: 10px; }
+    .join-item { background:#0d1523; border-radius:7px; padding:9px 12px; }
+    .join-item-label { font-size:0.6rem; text-transform:uppercase; letter-spacing:0.08em; color:#3a4a64; margin-bottom:5px; }
+    .join-item-val { font-size:0.73rem; font-family:monospace; color:#a0aec0; line-height:1.6; }
+    .b { color:var(--blue); } .a { color:var(--amber); } .p { color:var(--purple); }
+
+    /* FEATURE ENGINEERING */
+    .feat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .feat-item { background:#0d1523; border-radius:7px; padding:9px 12px; }
+    .feat-name { font-size:0.7rem; font-weight:600; color:var(--cyan); font-family:monospace; margin-bottom:5px; }
+    .feat-eq   { font-size:0.67rem; font-family:monospace; color:#718096; line-height:1.5; }
+    .feat-eq .bv { color:#90bdea; } .feat-eq .av { color:#f6b96b; }
+    .src-tag {
+      display:inline-block; font-size:0.57rem; font-weight:700; padding:1px 5px;
+      border-radius:3px; margin-left:5px; vertical-align:middle;
+    }
+    .t-bls  { background:#1a3a5c; color:#90bdea; }
+    .t-fdic { background:#3d2b1a; color:#f6b96b; }
+
+    /* NORMALIZATION */
+    .norm-formula-box {
+      background:#0d1523; border-radius:6px; padding:8px 14px;
+      font-family:monospace; font-size:0.72rem; color:#718096;
+      margin: 8px 0 12px; display:inline-block;
+    }
+    .norm-formula-box .hi { color:var(--indigo); }
+    .norm-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+    .norm-item { background:#0d1523; border:1px solid #1e1b4b; border-radius:7px; padding:9px 10px; }
+    .norm-name  { font-size:0.67rem; font-family:monospace; color:var(--indigo); margin-bottom:4px; }
+    .norm-input { font-size:0.62rem; color:#3a4a64; font-family:monospace; line-height:1.5; }
+    .norm-w { font-size:0.68rem; font-weight:700; color:var(--gold); margin-top:5px; }
+
+    /* SCORING */
+    .score-rows { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    .score-row { display:flex; align-items:center; gap:10px; }
+    .score-pct { font-size:0.88rem; font-weight:700; color:var(--gold); width:40px; text-align:right; flex-shrink:0; }
+    .score-track { flex:1; background:#0d1523; border-radius:4px; height:22px; overflow:hidden; }
+    .score-fill { height:100%; border-radius:4px; display:flex; align-items:center; padding:0 10px; }
+    .score-fill-label { font-size:0.67rem; font-family:monospace; color:rgba(255,255,255,0.9); }
+    .score-eq {
+      margin-top:12px; background:#0d1523; border-radius:8px; padding:10px 14px;
+      font-family:monospace; font-size:0.72rem; color:#718096; line-height:1.9;
+    }
+    .score-eq .hg { color:var(--gold); font-weight:700; }
+    .score-eq .hc { color:var(--cyan); }
+
+    /* OUTPUT */
+    .out-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:10px; }
+    .out-group { background:#0d1523; border-radius:7px; padding:10px 12px; }
+    .out-group-title { font-size:0.6rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:7px; }
+    .out-field { font-size:0.66rem; font-family:monospace; padding:2px 0; line-height:1.65; }
+    .from-fdic  { color:#f6b96b; }
+    .from-bls   { color:#90bdea; }
+    .from-eng   { color:var(--cyan); }
+    .from-norm  { color:var(--indigo); }
+    .from-score { color:var(--gold); }
+  </style>
+</head>
+<body>
+
+<!-- ─────────────────── HEADER ─────────────────── -->
+<div class="ph">
+  <div>
+    <h1>Data Model — Source Lineage &amp; Scoring Logic</h1>
+    <p>Field provenance, transformation pipeline, and composite score formula across BLS · FDIC · FRED</p>
+  </div>
+  <a class="back" href="/">← Dashboard</a>
+</div>
+
+<div class="canvas">
+
+  <!-- ════ LAYER 1 · DATA SOURCES ════ -->
+  <div class="llabel">Layer 1 — Raw Data Sources</div>
+  <div class="sources">
+
+    <!-- BLS -->
+    <div class="card bls">
+      <div class="sc-top">
+        <div class="badge badge-bls">BLS</div>
+        <div class="sc-name">Bureau of Labor Statistics</div>
+        <div class="sc-url">api.bls.gov/publicAPI/v2/timeseries/data/</div>
+        <div class="sc-auth">🔑 API key required &nbsp;·&nbsp; OEWS state-level wage series</div>
+      </div>
+      <div class="card-body">
+        <div class="section-tag">Raw fields returned</div>
+        <div class="chips">
+          <span class="chip chip-bls">state_fips</span>
+          <span class="chip chip-bls">state_name</span>
+          <span class="chip chip-bls">naics_code</span>
+          <span class="chip chip-bls">sector_name</span>
+          <span class="chip chip-bls">mean_annual_wage</span>
+        </div>
+        <div class="section-tag">Series pulled (SOC → NAICS proxy)</div>
+        <div class="chips">
+          <span class="chip chip-bls">SOC 15-0000 → Tech (5415)</span>
+          <span class="chip chip-bls">SOC 29-0000 → Healthcare (6211)</span>
+          <span class="chip chip-bls">SOC 23-0000 → Legal (5411)</span>
+        </div>
+        <div class="section-tag">Coverage</div>
+        <div class="chips">
+          <span class="chip chip-bls">51 states</span>
+          <span class="chip chip-bls">3 sectors</span>
+          <span class="chip chip-bls">153 series total</span>
+          <span class="chip chip-bls">batched 50/req</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- FDIC -->
+    <div class="card fdic">
+      <div class="sc-top">
+        <div class="badge badge-fdic">FDIC</div>
+        <div class="sc-name">Federal Deposit Insurance Corp.</div>
+        <div class="sc-url">banks.data.fdic.gov/api/financials</div>
+        <div class="sc-auth">🔓 No auth required &nbsp;·&nbsp; Annual call report data</div>
+      </div>
+      <div class="card-body">
+        <div class="section-tag">Raw fields returned</div>
+        <div class="chips">
+          <span class="chip chip-fdic">STNAME → state</span>
+          <span class="chip chip-fdic">DEP → total_deposits ($K→$M)</span>
+          <span class="chip chip-fdic">DEPNI → nonint_deposits ($K→$M)</span>
+          <span class="chip chip-fdic">CERT → institution_count</span>
+        </div>
+        <div class="section-tag">Query parameters</div>
+        <div class="chips">
+          <span class="chip chip-fdic">REPDTE: 2023-12-31</span>
+          <span class="chip chip-fdic">agg_by: STNAME</span>
+          <span class="chip chip-fdic">agg_sum: DEP, DEPNI</span>
+          <span class="chip chip-fdic">agg_count: CERT</span>
+        </div>
+        <div class="section-tag">Coverage</div>
+        <div class="chips">
+          <span class="chip chip-fdic">51 states + DC</span>
+          <span class="chip chip-fdic">Year-end 2023</span>
+          <span class="chip chip-fdic">Base table for join</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- FRED -->
+    <div class="card fred">
+      <div class="sc-top">
+        <div class="badge badge-fred">FRED</div>
+        <div class="sc-name">St. Louis Federal Reserve</div>
+        <div class="sc-url">api.stlouisfed.org/fred/series/observations</div>
+        <div class="sc-auth">🔑 API key required &nbsp;·&nbsp; Macro time-series</div>
+      </div>
+      <div class="card-body">
+        <div class="section-tag">Series pulled</div>
+        <div class="chips">
+          <span class="chip chip-fred">DPSACBW027SBOG</span>
+          <span class="chip chip-fred">date</span>
+          <span class="chip chip-fred">deposits_billions</span>
+        </div>
+        <div class="section-tag">Nature of data</div>
+        <div class="chips">
+          <span class="chip chip-fred">National aggregate only</span>
+          <span class="chip chip-fred">Weekly, seasonally adj.</span>
+          <span class="chip chip-fred">No state breakdown</span>
+        </div>
+        <div class="inactive-note">
+          ⚠ <strong>Defined but not active in scorer.</strong> fetch_fred_deposits() is implemented in data_fetcher.py but compute_scores() does not call it — FRED is not currently joined into the per-state model. Candidate for a future national normalisation pass.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Connector: 3 sources → join -->
+  <div class="connector" style="margin:6px 0;">
+    <svg width="900" height="44" viewBox="0 0 900 44" fill="none">
+      <path d="M150,0 C150,22 450,22 450,44" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6"/>
+      <path d="M450,0 L450,44" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6"/>
+      <path d="M750,0 C750,22 450,22 450,44" stroke="#64748b" stroke-width="1" stroke-dasharray="3 4" opacity="0.3"/>
+      <polygon points="445,38 455,38 450,44" fill="#a78bfa" opacity="0.85"/>
+    </svg>
+  </div>
+
+  <!-- ════ LAYER 2 · JOIN ════ -->
+  <div class="llabel">Layer 2 — Join &amp; Merge</div>
+  <div class="flow-card join">
+    <div class="badge badge-join">JOIN</div>
+    <div class="join-body">
+      <div class="join-item">
+        <div class="join-item-label">Join key</div>
+        <div class="join-item-val">
+          <span class="b">BLS.state_name</span><br>
+          <span style="color:#3a4a64">= (left merge) =</span><br>
+          <span class="a">FDIC.state (STNAME)</span>
+        </div>
+      </div>
+      <div class="join-item">
+        <div class="join-item-label">Join type &amp; base</div>
+        <div class="join-item-val">
+          <span class="a">FDIC</span> is the left (base) table<br>
+          <span class="b">BLS</span> wages merged in on state<br>
+          <span style="color:#3a4a64">Result: 51 rows</span>
+        </div>
+      </div>
+      <div class="join-item">
+        <div class="join-item-label">BLS pivot applied</div>
+        <div class="join-item-val">
+          Long → wide on <span class="b">sector_label</span><br>
+          Columns: <span class="b">Tech</span>, <span class="b">Healthcare</span>, <span class="b">Legal</span><br>
+          One row per state
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- connector -->
+  <div class="connector" style="margin:6px 0;">
+    <svg width="40" height="32"><line x1="20" y1="0" x2="20" y2="24" stroke="#3a4a64" stroke-width="1.5" stroke-dasharray="4 3"/><polygon points="15,22 25,22 20,30" fill="#22d3ee" opacity="0.75"/></svg>
+  </div>
+
+  <!-- ════ LAYER 3 · FEATURE ENGINEERING ════ -->
+  <div class="llabel">Layer 3 — Feature Engineering</div>
+  <div class="flow-card feat">
+    <div class="badge badge-feat">DERIVED FIELDS</div>
+    <div class="feat-grid">
+      <div class="feat-item">
+        <div class="feat-name">nonint_per_inst <span class="src-tag t-fdic">FDIC</span></div>
+        <div class="feat-eq">
+          <span class="av">nonint_deposits_millions</span><br>
+          ÷ <span class="av">institution_count</span><br>
+          <span style="color:#3a4a64">→ avg non-interest deposits per bank</span>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-name">nonint_to_total_ratio <span class="src-tag t-fdic">FDIC</span></div>
+        <div class="feat-eq">
+          <span class="av">nonint_deposits_millions</span><br>
+          ÷ <span class="av">total_deposits_millions</span><br>
+          <span style="color:#3a4a64">→ share of deposits that are non-interest</span>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-name">max_annual_wage <span class="src-tag t-bls">BLS</span></div>
+        <div class="feat-eq">
+          max(<span class="bv">Tech</span>, <span class="bv">Healthcare</span>, <span class="bv">Legal</span>)<br>
+          <span style="color:#3a4a64">→ highest sector wage in state</span>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-name">dominant_sector <span class="src-tag t-bls">BLS</span></div>
+        <div class="feat-eq">
+          argmax(<span class="bv">Tech</span>, <span class="bv">Healthcare</span>, <span class="bv">Legal</span>)<br>
+          <span style="color:#3a4a64">→ sector with highest mean wage</span><br>
+          <span style="color:#3a4a64">fallback: "Unknown" if all NaN</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- connector -->
+  <div class="connector" style="margin:6px 0;">
+    <svg width="40" height="32"><line x1="20" y1="0" x2="20" y2="24" stroke="#3a4a64" stroke-width="1.5" stroke-dasharray="4 3"/><polygon points="15,22 25,22 20,30" fill="#818cf8" opacity="0.75"/></svg>
+  </div>
+
+  <!-- ════ LAYER 4 · NORMALIZATION ════ -->
+  <div class="llabel">Layer 4 — Min-Max Normalization (0–100)</div>
+  <div class="flow-card norm">
+    <div class="badge badge-norm">NORMALIZATION</div>
+    <div class="norm-formula-box">
+      norm(x) = ( x − <span class="hi">min</span> ) ÷ ( <span class="hi">max</span> − <span class="hi">min</span> ) × 100
+    </div>
+    <div class="norm-grid">
+      <div class="norm-item">
+        <div class="norm-name">norm_total_deposits</div>
+        <div class="norm-input">← total_deposits_millions<br><span style="color:#f6b96b;">FDIC.DEP</span></div>
+        <div class="norm-w">weight → 35%</div>
+      </div>
+      <div class="norm-item">
+        <div class="norm-name">norm_nonint_per_inst</div>
+        <div class="norm-input">← nonint_per_inst<br><span style="color:#22d3ee;">derived (FDIC)</span></div>
+        <div class="norm-w">weight → 25%</div>
+      </div>
+      <div class="norm-item">
+        <div class="norm-name">norm_max_wage</div>
+        <div class="norm-input">← max_annual_wage<br><span style="color:#22d3ee;">derived (BLS)</span></div>
+        <div class="norm-w">weight → 25%</div>
+      </div>
+      <div class="norm-item">
+        <div class="norm-name">norm_nonint_ratio</div>
+        <div class="norm-input">← nonint_to_total_ratio<br><span style="color:#22d3ee;">derived (FDIC)</span></div>
+        <div class="norm-w">weight → 15%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- connector -->
+  <div class="connector" style="margin:6px 0;">
+    <svg width="40" height="32"><line x1="20" y1="0" x2="20" y2="24" stroke="#3a4a64" stroke-width="1.5" stroke-dasharray="4 3"/><polygon points="15,22 25,22 20,30" fill="#fbbf24" opacity="0.8"/></svg>
+  </div>
+
+  <!-- ════ LAYER 5 · SCORING FORMULA ════ -->
+  <div class="llabel">Layer 5 — Weighted Composite Score</div>
+  <div class="flow-card score">
+    <div class="badge badge-score">SCORING FORMULA</div>
+    <div class="score-rows">
+      <div class="score-row">
+        <div class="score-pct">35%</div>
+        <div class="score-track">
+          <div class="score-fill" style="width:35%;background:linear-gradient(90deg,#1a3a5c,#2563a8);">
+            <span class="score-fill-label">norm_total_deposits</span>
+          </div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-pct">25%</div>
+        <div class="score-track">
+          <div class="score-fill" style="width:25%;background:linear-gradient(90deg,#0e3a44,#0891b2);">
+            <span class="score-fill-label">norm_nonint_per_inst</span>
+          </div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-pct">25%</div>
+        <div class="score-track">
+          <div class="score-fill" style="width:25%;background:linear-gradient(90deg,#1a3a5c,#1d4ed8);">
+            <span class="score-fill-label">norm_max_wage</span>
+          </div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-pct">15%</div>
+        <div class="score-track">
+          <div class="score-fill" style="width:15%;background:linear-gradient(90deg,#0e3a44,#0e7490);">
+            <span class="score-fill-label">norm_nonint_ratio</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="score-eq">
+      <span class="hg">target_score</span> =<br>
+      &nbsp;&nbsp;<span class="hg">0.35</span> × <span class="hc">norm_total_deposits</span><br>
+      + <span class="hg">0.25</span> × <span class="hc">norm_nonint_per_inst</span><br>
+      + <span class="hg">0.25</span> × <span class="hc">norm_max_wage</span><br>
+      + <span class="hg">0.15</span> × <span class="hc">norm_nonint_ratio</span>
+    </div>
+  </div>
+
+  <!-- connector -->
+  <div class="connector" style="margin:6px 0;">
+    <svg width="40" height="32"><line x1="20" y1="0" x2="20" y2="24" stroke="#3a4a64" stroke-width="1.5" stroke-dasharray="4 3"/><polygon points="15,22 25,22 20,30" fill="#34d399" opacity="0.8"/></svg>
+  </div>
+
+  <!-- ════ LAYER 6 · OUTPUT DATASET ════ -->
+  <div class="llabel">Layer 6 — Output Dataset (target_scores.csv · 51 rows)</div>
+  <div class="flow-card output">
+    <div class="badge badge-output">OUTPUT FIELDS</div>
+    <div class="out-grid">
+      <div class="out-group">
+        <div class="out-group-title" style="color:#f6b96b;">From FDIC</div>
+        <div class="out-field from-fdic">state</div>
+        <div class="out-field from-fdic">total_deposits_millions</div>
+        <div class="out-field from-fdic">nonint_deposits_millions</div>
+        <div class="out-field from-fdic">institution_count</div>
+      </div>
+      <div class="out-group">
+        <div class="out-group-title" style="color:#90bdea;">From BLS</div>
+        <div class="out-field from-bls">Tech (wage)</div>
+        <div class="out-field from-bls">Healthcare (wage)</div>
+        <div class="out-field from-bls">Legal (wage)</div>
+      </div>
+      <div class="out-group">
+        <div class="out-group-title" style="color:var(--cyan);">Engineered &amp; Normalized</div>
+        <div class="out-field from-eng">nonint_per_inst</div>
+        <div class="out-field from-eng">nonint_to_total_ratio</div>
+        <div class="out-field from-eng">max_annual_wage</div>
+        <div class="out-field from-eng">dominant_sector</div>
+        <div class="out-field from-norm" style="margin-top:6px;">norm_total_deposits</div>
+        <div class="out-field from-norm">norm_nonint_per_inst</div>
+        <div class="out-field from-norm">norm_max_wage</div>
+        <div class="out-field from-norm">norm_nonint_ratio</div>
+      </div>
+      <div class="out-group">
+        <div class="out-group-title" style="color:var(--gold);">Score</div>
+        <div class="out-field from-score">target_score</div>
+        <div style="margin-top:10px;font-size:0.6rem;color:#3a4a64;line-height:1.7;">
+          Sorted descending.<br>
+          Cached to CSV on<br>
+          each scorer run.<br>
+          Served via /api/data.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /canvas -->
+</body>
+</html>
