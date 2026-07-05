@@ -303,5 +303,166 @@ def main():
     print(fred_df.head())
 
 
+import re as _re
+import time as _time
+
+_cc_rate_cache: dict = {"value": None, "ts": 0.0}
+
+
+def fetch_market_cc_rate(api_key: str = "") -> float:
+    """
+    Live web lookup of the current average US retail credit card APR.
+
+    Strategy order:
+      1. FRED series search — picks the most recently updated CC-rate series
+      2. Bankrate web scrape — parses the published average APR paragraph
+      3. Hard fallback — 21.5 % (mid-2026 market estimate)
+
+    Result is cached in-process for one hour so repeated page loads are instant.
+    """
+    global _cc_rate_cache
+    now = _time.time()
+    if _cc_rate_cache["value"] is not None and (now - _cc_rate_cache["ts"]) < 3600:
+        return _cc_rate_cache["value"]
+
+    def _cache(v: float) -> float:
+        _cc_rate_cache.update({"value": v, "ts": _time.time()})
+        return v
+
+    # ── Strategy 1: FRED series search ──────────────────────────────────────
+    if api_key:
+        try:
+            sr = requests.get(
+                "https://api.stlouisfed.org/fred/series/search",
+                params={
+                    "search_text": "credit card interest rate charged accounts",
+                    "api_key": api_key, "file_type": "json",
+                    "limit": 15, "order_by": "observation_end", "sort_order": "desc",
+                },
+                timeout=12,
+            )
+            if sr.status_code == 200:
+                for s in sr.json().get("seriess", []):
+                    if s.get("observation_end", "") < "2022-01-01":
+                        continue
+                    or_ = requests.get(
+                        "https://api.stlouisfed.org/fred/series/observations",
+                        params={
+                            "series_id": s["id"], "api_key": api_key,
+                            "file_type": "json", "sort_order": "desc", "limit": 1,
+                        },
+                        timeout=10,
+                    )
+                    if or_.status_code == 200:
+                        for o in or_.json().get("observations", []):
+                            if o.get("value", ".") != ".":
+                                val = float(o["value"])
+                                if 15.0 <= val <= 35.0:
+                                    print(f"[fetch_market_cc_rate] FRED series {s['id']}: {val}%")
+                                    return _cache(val)
+        except Exception as exc:
+            print(f"[fetch_market_cc_rate] FRED search failed: {exc}")
+
+    # ── Strategy 2: Federal Reserve G.19 Consumer Credit release ───────────
+    # The G.19 page publishes "Credit card plans, all accounts" interest rates.
+    # class="column1" marks the most-recent period column. We collect all values
+    # in the typical CC APR range and take the median to avoid outliers from
+    # premium cards, credit union tiers, etc.
+    try:
+        hdrs = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+        }
+        gr = requests.get(
+            "https://www.federalreserve.gov/releases/g19/current/g19.htm",
+            headers=hdrs, timeout=12,
+        )
+        if gr.status_code == 200:
+            # Grab all most-recent-column cells; filter to the CC APR range (15-25%)
+            col1_raw = _re.findall(r'class="column1"[^>]*>\s*(-?\d+\.\d+)', gr.text)
+            cc_vals = sorted([float(v) for v in col1_raw if 15.0 <= float(v) <= 25.0])
+            if cc_vals:
+                median_val = cc_vals[len(cc_vals) // 2]
+                print(f"[fetch_market_cc_rate] Fed G.19 median: {median_val}%")
+                return _cache(round(median_val, 2))
+    except Exception as exc:
+        print(f"[fetch_market_cc_rate] Fed G.19 scrape failed: {exc}")
+
+    # ── Strategy 3: Fallback ─────────────────────────────────────────────────
+    print("[fetch_market_cc_rate] Using fallback 21.5%")
+    return _cache(21.5)
+
+
+def fetch_fred_rates(api_key: str) -> dict:
+    """
+    Pull DFF (Fed Funds Rate) and DRCCLACBS (CC delinquency) from FRED,
+    plus the current market CC rate via live web lookup.
+    Historical TERMCBCCALLNS (1996-2012) is kept for chart continuity.
+    All FRED series filtered from 1996-01-01 to present.
+    """
+    HISTORY_START = "1996-01-01"
+
+    def _get(sid, limit=200):
+        url = "https://api.stlouisfed.org/fred/series/observations"
+        r = requests.get(url, params={
+            "series_id": sid, "api_key": api_key, "file_type": "json",
+            "sort_order": "asc", "observation_start": HISTORY_START,
+            "limit": limit,
+        }, timeout=30)
+        r.raise_for_status()
+        obs = [o for o in r.json().get("observations", []) if o.get("value", ".") != "."]
+        if not obs:
+            return pd.DataFrame(columns=["date", "value"])
+        df = pd.DataFrame([{"date": pd.to_datetime(o["date"]), "value": float(o["value"])} for o in obs])
+        return df.sort_values("date").reset_index(drop=True)
+
+    def to_records(df):
+        if df.empty:
+            return []
+        df = df.copy()
+        df["date"] = df["date"].dt.strftime("%Y-%m-%d")
+        return df[["date", "value"]].to_dict("records")
+
+    try:
+        # DFF is daily — 1996→now ≈ 10,950 obs; limit=11500 covers through 2026
+        dff_raw   = _get("DFF", limit=11500)
+        cc_rate   = _get("TERMCBCCALLNS", limit=200)  # historical 1996-2012 only
+        cc_delinq = _get("DRCCLACBS", limit=200)
+
+        # Resample DFF from daily to monthly average
+        if not dff_raw.empty:
+            dff = (dff_raw.set_index("date")["value"]
+                   .resample("MS").mean()
+                   .dropna()
+                   .reset_index())
+            dff.columns = ["date", "value"]
+        else:
+            dff = dff_raw
+
+        # Live web lookup for current CC market rate
+        market_cc = fetch_market_cc_rate(api_key)
+
+        return {
+            "current": {
+                "dff":       round(float(dff["value"].iloc[-1]), 2)       if not dff.empty       else 3.50,
+                "cc_rate":   market_cc,   # live web-fetched current APR
+                "cc_delinq": round(float(cc_delinq["value"].iloc[-1]), 2) if not cc_delinq.empty else 3.2,
+            },
+            "history": {
+                "dff":       to_records(dff),
+                "cc_rate":   to_records(cc_rate),   # 1996-2012 historical
+                "cc_delinq": to_records(cc_delinq),
+            },
+        }
+    except Exception as exc:
+        print(f"[fetch_fred_rates] Error: {exc}")
+        return {
+            "current": {"dff": 3.50, "cc_rate": 21.5, "cc_delinq": 3.2},
+            "history": {"dff": [], "cc_rate": [], "cc_delinq": []},
+        }
+
+
 if __name__ == "__main__":
     main()

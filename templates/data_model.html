@@ -81,7 +81,7 @@
     .sc-auth { font-size: 0.65rem; color: #4a6080; margin-top: 2px; }
     .card.bls  { border-top: 3px solid var(--blue); }
     .card.fdic { border-top: 3px solid var(--amber); }
-    .card.fred { border-top: 3px solid #3a4a60; opacity: 0.7; }
+    .card.fred { border-top: 3px solid #14b8a6; }
 
     .chips { display: flex; flex-wrap: wrap; gap: 4px; }
     .chip {
@@ -90,12 +90,31 @@
     }
     .chip-bls  { background:#1a3a5c; color:#90bdea; }
     .chip-fdic { background:#3d2b1a; color:#f6b96b; }
-    .chip-fred { background:#252d3a; color:#64748b; }
+    .chip-fred { background:#0d3a38; color:#5eead4; }
+    .badge-fred { background:#0d3a38; color:#14b8a6; }
 
-    .inactive-note {
-      font-size: 0.66rem; color: #fc8181; margin-top: 8px;
-      background: #2d1515; border-radius: 5px; padding: 6px 10px; line-height: 1.55;
+    .fred-active-note {
+      font-size: 0.66rem; color: #5eead4; margin-top: 8px;
+      background: #0a2e2b; border: 1px solid #14b8a633;
+      border-radius: 5px; padding: 6px 10px; line-height: 1.6;
     }
+
+    /* Two-pipeline split (BLS+FDIC scorer vs FRED NII) */
+    .pipeline-split { display:grid; grid-template-columns:2fr 1fr; gap:12px; align-items:start; }
+    .fred-nii-card {
+      background: #0a2e2b; border: 1px solid #14b8a640;
+      border-left: 4px solid #14b8a6; border-radius: 10px; padding: 14px 16px;
+    }
+    .fred-nii-title { font-size:0.75rem; font-weight:600; color:#14b8a6; margin-bottom:10px; }
+    .fred-nii-row { display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; }
+    .fred-nii-series { background:#0d3a38; color:#5eead4; font-family:monospace; font-size:0.65rem; padding:2px 7px; border-radius:4px; white-space:nowrap; }
+    .fred-nii-desc { font-size:0.65rem; color:#4a8075; line-height:1.5; }
+    .fred-nii-link {
+      display:inline-block; margin-top:10px; font-size:0.67rem; font-weight:700;
+      color:#14b8a6; background:rgba(20,184,166,0.1); border:1px solid rgba(20,184,166,0.35);
+      border-radius:20px; padding:3px 12px; text-decoration:none;
+    }
+    .fred-nii-link:hover { background:rgba(20,184,166,0.2); }
 
     /* ── Connector ── */
     .connector { display: flex; justify-content: center; margin: 2px 0; }
@@ -255,66 +274,113 @@
         <div class="badge badge-fred">FRED</div>
         <div class="sc-name">St. Louis Federal Reserve</div>
         <div class="sc-url">api.stlouisfed.org/fred/series/observations</div>
-        <div class="sc-auth">🔑 API key required &nbsp;·&nbsp; Macro time-series</div>
+        <div class="sc-auth">🔑 API key required &nbsp;·&nbsp; Interest rate &amp; credit time-series</div>
       </div>
       <div class="card-body">
-        <div class="section-tag">Series pulled</div>
+        <div class="section-tag">FRED API — series pulled (api_key required)</div>
         <div class="chips">
-          <span class="chip chip-fred">DPSACBW027SBOG</span>
-          <span class="chip chip-fred">date</span>
-          <span class="chip chip-fred">deposits_billions</span>
+          <span class="chip chip-fred">DFF — Fed Funds Rate (daily → monthly avg)</span>
+          <span class="chip chip-fred">DRCCLACBS — CC delinquency rate (quarterly)</span>
+          <span class="chip chip-fred" style="opacity:0.6;">TERMCBCCALLNS — CC rate archive (1996–2012 only, discontinued by Fed)</span>
         </div>
-        <div class="section-tag">Nature of data</div>
+        <div class="section-tag">Fed G.19 web scrape — no API key</div>
         <div class="chips">
-          <span class="chip chip-fred">National aggregate only</span>
-          <span class="chip chip-fred">Weekly, seasonally adj.</span>
-          <span class="chip chip-fred">No state breakdown</span>
+          <span class="chip" style="background:#1a2e1a;color:#86efac;">federalreserve.gov/releases/g19/current/g19.htm</span>
+          <span class="chip" style="background:#1a2e1a;color:#86efac;">class="column1" cells · median 15–25% → current avg CC APR</span>
+          <span class="chip" style="background:#1a2e1a;color:#86efac;">in-process cache · 1 hr TTL</span>
         </div>
-        <div class="inactive-note">
-          ⚠ <strong>Defined but not active in scorer.</strong> fetch_fred_deposits() is implemented in data_fetcher.py but compute_scores() does not call it — FRED is not currently joined into the per-state model. Candidate for a future national normalisation pass.
+        <div class="section-tag">Coverage</div>
+        <div class="chips">
+          <span class="chip chip-fred">National macro rates</span>
+          <span class="chip chip-fred">1996–present (FRED API)</span>
+          <span class="chip chip-fred">Live on each page load</span>
+        </div>
+        <div class="fred-active-note">
+          ✓ <strong>Active — feeds NII Strategy page.</strong> DFF (1996–present) and DRCCLACBS power the deposit cost KPI, historical chart, and delinquency overlay. TERMCBCCALLNS is used as historical chart context only (1996–2012). Current Market CC Rate is fetched live via Fed G.19 scrape. Not joined into the geographic scorer.
         </div>
       </div>
     </div>
+  </div><!-- /sources -->
+
+  <!-- ════ SPLIT CONNECTORS: BLS+FDIC → JOIN | FRED → NII STRATEGY ════ -->
+  <div class="pipeline-split" style="margin:6px 0;">
+    <!-- Left: BLS + FDIC converge to JOIN -->
+    <div class="connector">
+      <svg width="100%" height="44" viewBox="0 0 600 44" fill="none" preserveAspectRatio="none">
+        <path d="M100,0 C100,22 300,22 300,44" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6"/>
+        <path d="M300,0 L300,44" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6"/>
+        <polygon points="295,38 305,38 300,44" fill="#a78bfa" opacity="0.85"/>
+      </svg>
+    </div>
+    <!-- Right: FRED down to NII Strategy -->
+    <div class="connector">
+      <svg width="100%" height="44" viewBox="0 0 200 44" fill="none" preserveAspectRatio="none">
+        <path d="M100,0 L100,44" stroke="#14b8a6" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.75"/>
+        <polygon points="95,38 105,38 100,44" fill="#14b8a6" opacity="0.85"/>
+      </svg>
+    </div>
   </div>
 
-  <!-- Connector: 3 sources → join -->
-  <div class="connector" style="margin:6px 0;">
-    <svg width="900" height="44" viewBox="0 0 900 44" fill="none">
-      <path d="M150,0 C150,22 450,22 450,44" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6"/>
-      <path d="M450,0 L450,44" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6"/>
-      <path d="M750,0 C750,22 450,22 450,44" stroke="#64748b" stroke-width="1" stroke-dasharray="3 4" opacity="0.3"/>
-      <polygon points="445,38 455,38 450,44" fill="#a78bfa" opacity="0.85"/>
-    </svg>
-  </div>
+  <!-- ════ LAYER 2: JOIN (left) + FRED NII DESTINATION (right) ════ -->
+  <div class="pipeline-split" style="margin-bottom:16px;">
+    <div>
+      <div class="llabel">Layer 2 — Join &amp; Merge (BLS + FDIC → Geographic Scorer)</div>
+      <div class="flow-card join">
+        <div class="badge badge-join">JOIN</div>
+        <div class="join-body">
+          <div class="join-item">
+            <div class="join-item-label">Join key</div>
+            <div class="join-item-val">
+              <span class="b">BLS.state_name</span><br>
+              <span style="color:#3a4a64">= (left merge) =</span><br>
+              <span class="a">FDIC.state (STNAME)</span>
+            </div>
+          </div>
+          <div class="join-item">
+            <div class="join-item-label">Join type &amp; base</div>
+            <div class="join-item-val">
+              <span class="a">FDIC</span> is the left (base) table<br>
+              <span class="b">BLS</span> wages merged in on state<br>
+              <span style="color:#3a4a64">Result: 51 rows</span>
+            </div>
+          </div>
+          <div class="join-item">
+            <div class="join-item-label">BLS pivot applied</div>
+            <div class="join-item-val">
+              Long → wide on <span class="b">sector_label</span><br>
+              Columns: <span class="b">Tech</span>, <span class="b">Healthcare</span>, <span class="b">Legal</span><br>
+              One row per state
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  <!-- ════ LAYER 2 · JOIN ════ -->
-  <div class="llabel">Layer 2 — Join &amp; Merge</div>
-  <div class="flow-card join">
-    <div class="badge badge-join">JOIN</div>
-    <div class="join-body">
-      <div class="join-item">
-        <div class="join-item-label">Join key</div>
-        <div class="join-item-val">
-          <span class="b">BLS.state_name</span><br>
-          <span style="color:#3a4a64">= (left merge) =</span><br>
-          <span class="a">FDIC.state (STNAME)</span>
+    <div>
+      <div class="llabel">FRED — NII Strategy Pipeline (independent)</div>
+      <div class="fred-nii-card">
+        <div class="fred-nii-title">fetch_fred_rates() + fetch_market_cc_rate() → /api/nii-data</div>
+        <div class="fred-nii-row">
+          <span class="fred-nii-series">DFF</span>
+          <span class="fred-nii-desc">Fed Funds Rate · daily → monthly avg · 1996–present · deposit cost KPI &amp; full historical chart</span>
         </div>
-      </div>
-      <div class="join-item">
-        <div class="join-item-label">Join type &amp; base</div>
-        <div class="join-item-val">
-          <span class="a">FDIC</span> is the left (base) table<br>
-          <span class="b">BLS</span> wages merged in on state<br>
-          <span style="color:#3a4a64">Result: 51 rows</span>
+        <div class="fred-nii-row">
+          <span class="fred-nii-series">DRCCLACBS</span>
+          <span class="fred-nii-desc">CC delinquency rate · quarterly · 1996–present · risk overlay on historical spread chart</span>
         </div>
-      </div>
-      <div class="join-item">
-        <div class="join-item-label">BLS pivot applied</div>
-        <div class="join-item-val">
-          Long → wide on <span class="b">sector_label</span><br>
-          Columns: <span class="b">Tech</span>, <span class="b">Healthcare</span>, <span class="b">Legal</span><br>
-          One row per state
+        <div class="fred-nii-row">
+          <span class="fred-nii-series" style="opacity:0.6;">TERMCBCCALLNS</span>
+          <span class="fred-nii-desc" style="opacity:0.7;">Historical CC rate archive · 1996–2012 only · Fed discontinued this series · used as chart background context, not for KPIs</span>
         </div>
+        <div class="fred-nii-row" style="margin-top:4px;padding-top:8px;border-top:1px solid #14b8a620;">
+          <span class="fred-nii-series" style="background:#1a2e1a;color:#86efac;white-space:nowrap;">Fed G.19 scrape</span>
+          <span class="fred-nii-desc">Live current avg CC APR · scraped from federalreserve.gov/releases/g19 at page load · powers Market CC Rate KPI, FinTechCo CC launch target marker (Jul 2026), and NIM Spread post-2012 · 1 hr in-process cache</span>
+        </div>
+        <div style="margin-top:10px; font-size:0.63rem; color:#4a8075; line-height:1.6;">
+          Not joined to geographic scorer. Feeds NII Strategy independently via /api/nii-data.<br>
+          FinTechCo CC Rate is displayed as a single Jul 2026 launch-target marker only — the card has not yet been issued.
+        </div>
+        <a class="fred-nii-link" href="/nii-strategy" target="_blank">→ Open NII Strategy</a>
       </div>
     </div>
   </div>

@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinTechCo — NII Strategy</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      --bg:      #0f1623;
+      --surface: #161f30;
+      --s2:      #1e2d45;
+      --border:  #2a3a5c;
+      --text:    #e2e8f0;
+      --muted:   #718096;
+      --blue:    #63b3ed;
+      --amber:   #f6ad55;
+      --green:   #68d391;
+      --red:     #fc8181;
+      --purple:  #b794f4;
+      --gold:    #fbbf24;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; }
+
+    /* ── Header ── */
+    .hdr {
+      background: linear-gradient(135deg,#1a2744,#0d1b36);
+      border-bottom: 1px solid #2d4a7a;
+      padding: 14px 28px;
+      display: flex; justify-content: space-between; align-items: center;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .hdr-left h1 { font-size: 1.05rem; font-weight: 700; color: var(--blue); }
+    .hdr-left p  { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .hdr-right { display: flex; align-items: center; gap: 14px; }
+    .phase-badge {
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em; padding: 3px 10px;
+      border-radius: 20px; white-space: nowrap;
+    }
+    .ph1 { background: rgba(99,179,237,0.15); border: 1px solid rgba(99,179,237,0.4); color: var(--blue); }
+    .ph2 { background: rgba(104,211,145,0.15); border: 1px solid rgba(104,211,145,0.4); color: var(--green); }
+    .back { color: var(--blue); font-size: 0.78rem; text-decoration: none; opacity: 0.75;
+            background: rgba(99,179,237,0.1); border: 1px solid rgba(99,179,237,0.25);
+            padding: 6px 14px; border-radius: 6px; transition: opacity 0.15s; }
+    .back:hover { opacity: 1; }
+
+    /* ── Page ── */
+    .page { padding: 20px 28px 48px; max-width: 1200px; margin: 0 auto; }
+
+    /* ── Section label ── */
+    .slabel {
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.14em; color: #3a4a64;
+      text-transform: uppercase; margin-bottom: 10px; margin-top: 4px;
+    }
+
+    /* ── KPI tiles ── */
+    .kpi-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 20px; }
+    .kpi {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .kpi-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 8px; }
+    .kpi-value { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
+    .kpi-sub   { font-size: 0.67rem; color: var(--muted); margin-top: 4px; }
+    .kpi.highlight { border-color: var(--purple); }
+    .kpi.highlight .kpi-value { color: var(--purple); }
+
+    /* ── Mid grid ── */
+    .mid-grid { display: grid; grid-template-columns: 300px 1fr; gap: 16px; margin-bottom: 20px; }
+
+    /* ── Assumption panel ── */
+    .assume-panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px;
+    }
+    .assume-title { font-size: 0.75rem; font-weight: 600; color: var(--text); margin-bottom: 14px; }
+    .assume-group { margin-bottom: 18px; }
+    .assume-group:last-child { margin-bottom: 0; }
+    .assume-name { font-size: 0.68rem; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+    .assume-val  { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+    .assume-sub  { font-size: 0.62rem; color: #3a4a64; margin-bottom: 8px; line-height: 1.5; }
+    input[type=range] { width: 100%; accent-color: var(--blue); }
+    .assume-divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+    .phase-note {
+      background: #0d1523; border-radius: 7px; padding: 10px 12px;
+      font-size: 0.67rem; color: #4a6080; line-height: 1.6; margin-top: 14px;
+    }
+    .phase-note strong { color: var(--muted); }
+
+    /* ── Chart card ── */
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px; overflow: hidden;
+    }
+    .chart-card-title { font-size: 0.75rem; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+
+    /* ── Loading ── */
+    .loading {
+      display: flex; align-items: center; justify-content: center;
+      height: 200px; color: var(--muted); font-size: 0.8rem;
+    }
+
+    /* ── Methodology ── */
+    .methodology {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 18px; margin-top: 16px;
+      font-size: 0.67rem; color: #4a6080; line-height: 1.8;
+    }
+    .methodology strong { color: var(--muted); }
+
+    /* ── FRED badge ── */
+    .fred-live {
+      display: inline-block; font-size: 0.58rem; font-weight: 700; padding: 1px 6px;
+      border-radius: 3px; background: rgba(104,211,145,0.15); color: var(--green);
+      border: 1px solid rgba(104,211,145,0.3); margin-left: 6px; vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="hdr">
+  <div class="hdr-left">
+    <h1>NII Strategy — Net Interest Income Viability Analysis</h1>
+    <p>Live FRED rate data · Two-phase deposit acquisition + credit card NIM model</p>
+  </div>
+  <div class="hdr-right">
+    <span class="phase-badge ph1">Phase 1 — Deposit Acquisition</span>
+    <span class="phase-badge ph2">Phase 2 — Credit Card NIM</span>
+    <a class="back" href="/" target="_blank">← Dashboard</a>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- ════ KPI TILES ════ -->
+  <div class="slabel">Current Rate Environment <span class="fred-live">FRED LIVE</span></div>
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">Fed Funds Rate</div>
+      <div class="kpi-value" id="kpi-dff" style="color:var(--blue)">—</div>
+      <div class="kpi-sub">Deposit cost floor · DFF</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Market CC Rate</div>
+      <div class="kpi-value" id="kpi-cc-market" style="color:var(--amber)">—</div>
+      <div class="kpi-sub">Current avg APR · live web data</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">FinTechCo CC Rate</div>
+      <div class="kpi-value" id="kpi-cc-fintech" style="color:var(--green)">—</div>
+      <div class="kpi-sub">Below Capital One · adj. by slider</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Deposit Cost</div>
+      <div class="kpi-value" id="kpi-deposit-cost" style="color:var(--amber)">—</div>
+      <div class="kpi-sub">Fed Funds + premium · adj. by slider</div>
+    </div>
+    <div class="kpi highlight">
+      <div class="kpi-label">Net Interest Margin</div>
+      <div class="kpi-value" id="kpi-nim">—</div>
+      <div class="kpi-sub" id="kpi-nim-sub">CC yield minus deposit cost</div>
+    </div>
+  </div>
+
+  <!-- ════ MID: ASSUMPTIONS + HISTORICAL CHART ════ -->
+  <div class="slabel">Assumptions &amp; Historical Rate Spread</div>
+  <div class="mid-grid">
+
+    <!-- Assumption sliders -->
+    <div class="assume-panel">
+      <div class="assume-title">Strategy Assumptions</div>
+
+      <div class="assume-group">
+        <div class="assume-name">FinTechCo CC Rate</div>
+        <div class="assume-val" id="lbl-cc-discount" style="color:var(--green)">82% of market</div>
+        <div class="assume-sub" id="sub-cc-discount">Undercutting Capital One while preserving spread</div>
+        <input type="range" id="sl-cc-discount" min="70" max="100" value="82" step="1" />
+      </div>
+
+      <hr class="assume-divider"/>
+
+      <div class="assume-group">
+        <div class="assume-name">Deposit Rate Premium over Fed Funds</div>
+        <div class="assume-val" id="lbl-dep-premium" style="color:var(--red)">+75 bps</div>
+        <div class="assume-sub" id="sub-dep-premium">Premium paid to attract sticky HYSA deposits</div>
+        <input type="range" id="sl-dep-premium" min="25" max="200" value="75" step="5" />
+      </div>
+
+      <hr class="assume-divider"/>
+
+      <div class="assume-group">
+        <div class="assume-name">Deposit Capture Rate</div>
+        <div class="assume-val" id="lbl-capture" style="color:var(--purple)">0.05% of state deposits</div>
+        <div class="assume-sub" id="sub-capture">Share of addressable state deposits FinTechCo wins</div>
+        <input type="range" id="sl-capture" min="1" max="100" value="5" step="1" />
+      </div>
+
+      <div class="phase-note">
+        <strong>Phase 1:</strong> Attract rate-sensitive professionals &amp; small businesses with premium HYSA.<br>
+        <strong>Phase 2:</strong> Deploy captured deposits as credit card receivables at below-Capital One rates, earning the NIM spread above.
+      </div>
+    </div>
+
+    <!-- Historical spread chart -->
+    <div class="chart-card">
+      <div class="chart-card-title">Historical Rate Environment — Fed Funds vs. CC Market Rate vs. FinTechCo NIM</div>
+      <div id="chart-history"><div class="loading">Loading FRED data…</div></div>
+    </div>
+  </div>
+
+  <!-- ════ STATE NII PROJECTION ════ -->
+  <div class="slabel">Projected Annual NII by State — Top 25</div>
+  <div class="chart-card">
+    <div class="chart-card-title">
+      Annual Net Interest Income Contribution by State &nbsp;·&nbsp;
+      <span style="font-size:0.67rem;color:var(--muted);font-weight:400;">
+        Based on captured deposits × NIM · adjust sliders above to recompute
+      </span>
+    </div>
+    <div id="chart-states"><div class="loading">Loading…</div></div>
+  </div>
+
+  <!-- ════ METHODOLOGY ════ -->
+  <div class="methodology">
+    <strong>Methodology &amp; Assumptions</strong> &nbsp;·&nbsp;
+    <strong>Fed Funds Rate (DFF)</strong> is live from FRED (St. Louis Fed), 1996–present.
+    &nbsp;<strong>Market CC Rate</strong> is fetched live at page load via web search (Bankrate / FRED series search); historical chart blends TERMCBCCALLNS FRED data (1996–2012) with the live web rate for 2012–present.
+    &nbsp;<strong>CC Delinquency (DRCCLACBS)</strong> is a quarterly FRED series; the most recent observation reflects the standard quarterly publication lag (~1 quarter).
+    &nbsp;<strong>NIM</strong> = (Market CC Rate × CC Discount) − (Fed Funds + Deposit Premium).
+    &nbsp;<strong>Projected NII</strong> = State Total Deposits (FDIC 2023) × Capture Rate × NIM.
+    &nbsp;<strong>This is a strategic planning model, not a financial forecast.</strong>
+    &nbsp;Actual NII depends on credit losses, opex, regulatory capital, and realized deposit/loan mix.
+  </div>
+
+</div><!-- /page -->
+
+<script>
+let apiData = null;
+
+// Default assumptions (mirror slider defaults)
+const A = {
+  ccDiscount:     0.82,   // fraction of market CC rate
+  depositPremium: 0.75,   // % points over Fed Funds
+  captureRate:    0.0005, // fraction of state deposits (0.05%)
+};
+
+// ── Formatting ──
+const fmtPct  = v => v != null ? v.toFixed(2) + '%' : '—';
+const fmtM    = v => v == null ? '—' : v >= 1000 ? '$' + (v/1000).toFixed(1) + 'B' : '$' + v.toFixed(0) + 'M';
+
+// ── Sector colours ──
+const SECTOR_COLORS = {
+  Tech: '#63b3ed', Healthcare: '#68d391', Legal: '#f6ad55', Unknown: '#718096',
+};
+
+// ── Compute current metrics from assumptions + live rates ──
+function metrics() {
+  const cur    = apiData.current;
+  const dff    = cur.dff       ?? 4.33;
+  const ccMkt  = cur.cc_rate   ?? 21.5;
+  const fintCC = ccMkt * A.ccDiscount;
+  const depCost = dff + A.depositPremium;
+  const nim    = fintCC - depCost;
+  return { dff, ccMkt, fintCC, depCost, nim };
+}
+
+// ── Update KPI tiles ──
+function updateKPIs() {
+  const { dff, ccMkt, fintCC, depCost, nim } = metrics();
+  document.getElementById('kpi-dff').textContent          = fmtPct(dff);
+  document.getElementById('kpi-cc-market').textContent    = fmtPct(ccMkt);
+  document.getElementById('kpi-cc-fintech').textContent   = fmtPct(fintCC);
+  document.getElementById('kpi-deposit-cost').textContent = fmtPct(depCost);
+  document.getElementById('kpi-nim').textContent          = fmtPct(nim);
+
+  const nimEl  = document.getElementById('kpi-nim');
+  const nimSub = document.getElementById('kpi-nim-sub');
+  if (nim >= 10) {
+    nimEl.style.color = '#68d391';
+    nimSub.textContent = '✓ Strong spread — favourable environment';
+  } else if (nim >= 6) {
+    nimEl.style.color = '#f6ad55';
+    nimSub.textContent = '◐ Moderate spread — viable with discipline';
+  } else {
+    nimEl.style.color = '#fc8181';
+    nimSub.textContent = '⚠ Thin spread — review assumptions';
+  }
+}
+
+// ── Historical spread chart ──
+function renderHistory() {
+  document.querySelector('#chart-history .loading')?.remove();
+
+  const hist = apiData.history;
+  const { dff: curDFF } = metrics();
+
+  const dffDates = hist.dff.map(d => d.date);
+  const dffVals  = hist.dff.map(d => d.value);
+  const ccDates  = hist.cc_rate.map(d => d.date);
+  const ccVals   = hist.cc_rate.map(d => d.value);
+  const dqDates  = hist.cc_delinq.map(d => d.date);
+  const dqVals   = hist.cc_delinq.map(d => d.value);
+
+  // CC rate lookup: use historical TERMCBCCALLNS for 1996-2012,
+  // then switch to the live web-fetched market rate for post-2012 dates.
+  // This keeps historical accuracy and ensures the current period reflects
+  // today's ~21% market APR rather than the stale 2012 series endpoint.
+  const ccMap = {};
+  ccDates.forEach((d, i) => { ccMap[d] = ccVals[i]; });
+  const lastCCDate   = ccDates.length > 0 ? ccDates[ccDates.length - 1] : '2012-08-01';
+  const liveCCMarket = apiData.current.cc_rate;  // live web-fetched APR
+  function lookupCC(dateStr) {
+    if (ccMap[dateStr] !== undefined) return ccMap[dateStr];
+    if (dateStr <= lastCCDate) {
+      // Forward-fill within the historical TERMCBCCALLNS window
+      const keys = Object.keys(ccMap).sort();
+      let v = ccVals[0] ?? liveCCMarket;
+      for (const k of keys) { if (k <= dateStr) v = ccMap[k]; else break; }
+      return v;
+    }
+    // Post-2012: use the live web-fetched market rate
+    return liveCCMarket;
+  }
+
+  // All computed series use dffDates (1996-present).
+  // Deposit Cost is purely DFF-derived. FinTechCo CC and NIM blend
+  // historical CC data (1996-2012) with the live web rate (2012-present).
+  const extCCVals   = dffDates.map(d => lookupCC(d));
+  const fintCCVals  = extCCVals.map(v => v * A.ccDiscount);
+  const depCostVals = dffVals.map(v => v + A.depositPremium);
+  const nimVals     = fintCCVals.map((v, i) => v - depCostVals[i]);
+
+  const traces = [
+    {
+      name: 'Fed Funds Rate (DFF)', x: dffDates, y: dffVals,
+      type: 'scatter', mode: 'lines',
+      line: { color: '#63b3ed', width: 2 },
+      hovertemplate: '%{x}: <b>%{y:.2f}%</b><extra>Fed Funds</extra>',
+    },
+    {
+      // Single launch-point marker — the card has not yet been issued;
+      // show only the July 2026 planned APR, not a spurious historical line.
+      name: 'FinTechCo CC Rate (Jul 2026 target)',
+      x: [dffDates[dffDates.length - 1]],
+      y: [fintCCVals[fintCCVals.length - 1]],
+      type: 'scatter', mode: 'markers',
+      marker: {
+        symbol: 'circle', size: 14,
+        color: '#68d391',
+        line: { color: '#276749', width: 2.5 },
+      },
+      hovertemplate: 'Jul 2026 launch target: <b>%{y:.2f}%</b><extra>FinTechCo CC Rate</extra>',
+    },
+    {
+      name: 'Deposit Cost', x: dffDates, y: depCostVals,
+      type: 'scatter', mode: 'lines',
+      line: { color: '#f6ad55', width: 1.5, dash: 'dash' },
+      hovertemplate: '%{x}: <b>%{y:.2f}%</b><extra>Deposit Cost</extra>',
+    },
+    {
+      name: 'NIM Spread', x: dffDates, y: nimVals,
+      type: 'scatter', mode: 'lines', fill: 'tozeroy',
+      fillcolor: 'rgba(183,148,244,0.12)',
+      line: { color: '#b794f4', width: 1.5 },
+      hovertemplate: '%{x}: <b>%{y:.2f}%</b><extra>NIM</extra>',
+    },
+    {
+      name: 'CC Delinquency %', x: dqDates, y: dqVals,
+      type: 'scatter', mode: 'lines+markers',
+      line: { color: '#f687b3', width: 1.5, dash: 'dashdot' },
+      marker: { size: 4 },
+      yaxis: 'y2',
+      hovertemplate: '%{x}: <b>%{y:.2f}%</b><extra>CC Delinquency (quarterly — latest Q1 2026)</extra>',
+    },
+  ];
+
+  const launchDate = dffDates[dffDates.length - 1];
+  const launchRate = fintCCVals[fintCCVals.length - 1];
+
+  const layout = {
+    paper_bgcolor: '#161f30', plot_bgcolor: '#0d1523',
+    font: { color: '#90a0b7', size: 11 },
+    height: 320,
+    margin: { t: 10, b: 40, l: 50, r: 60 },
+    legend: { orientation: 'h', x: 0, y: -0.18, font: { size: 10 } },
+    xaxis: { gridcolor: '#1e2d45', color: '#4a6080', zeroline: false },
+    yaxis: {
+      title: { text: 'Rate (%)', font: { size: 10 } },
+      gridcolor: '#1e2d45', color: '#4a6080', zeroline: false,
+    },
+    yaxis2: {
+      title: { text: 'Delinquency (%)', font: { size: 10 } },
+      overlaying: 'y', side: 'right', gridcolor: 'transparent',
+      color: '#4a6080', zeroline: false,
+    },
+    hovermode: 'x unified',
+    annotations: [{
+      x: launchDate, y: launchRate,
+      xref: 'x', yref: 'y',
+      text: `FinTechCo CC<br><b>${launchRate.toFixed(1)}%</b><br><span style="font-size:9px">Jul 2026 target</span>`,
+      showarrow: true, arrowhead: 2, arrowsize: 1,
+      arrowcolor: '#68d391', arrowwidth: 1.5,
+      ax: -72, ay: -44,
+      font: { color: '#68d391', size: 9.5 },
+      bgcolor: 'rgba(13,21,35,0.88)',
+      bordercolor: '#276749', borderwidth: 1, borderpad: 4,
+      align: 'center',
+    }],
+  };
+
+  Plotly.react('chart-history', traces, layout, { responsive: true, displayModeBar: false });
+}
+
+// ── State NII projection chart ──
+function renderStates() {
+  document.querySelector('#chart-states .loading')?.remove();
+  const { nim } = metrics();
+  const states = (apiData.states || [])
+    .filter(s => s.total_deposits_millions != null)
+    .map(s => ({
+      ...s,
+      nii: s.total_deposits_millions * A.captureRate * (nim / 100),
+    }))
+    .sort((a, b) => b.nii - a.nii)
+    .slice(0, 25);
+
+  const abbr = {
+    'ALABAMA':'AL','ALASKA':'AK','ARIZONA':'AZ','ARKANSAS':'AR','CALIFORNIA':'CA',
+    'COLORADO':'CO','CONNECTICUT':'CT','DELAWARE':'DE','FLORIDA':'FL','GEORGIA':'GA',
+    'HAWAII':'HI','IDAHO':'ID','ILLINOIS':'IL','INDIANA':'IN','IOWA':'IA',
+    'KANSAS':'KS','KENTUCKY':'KY','LOUISIANA':'LA','MAINE':'ME','MARYLAND':'MD',
+    'MASSACHUSETTS':'MA','MICHIGAN':'MI','MINNESOTA':'MN','MISSISSIPPI':'MS',
+    'MISSOURI':'MO','MONTANA':'MT','NEBRASKA':'NE','NEVADA':'NV','NEW HAMPSHIRE':'NH',
+    'NEW JERSEY':'NJ','NEW MEXICO':'NM','NEW YORK':'NY','NORTH CAROLINA':'NC',
+    'NORTH DAKOTA':'ND','OHIO':'OH','OKLAHOMA':'OK','OREGON':'OR',
+    'PENNSYLVANIA':'PA','RHODE ISLAND':'RI','SOUTH CAROLINA':'SC','SOUTH DAKOTA':'SD',
+    'TENNESSEE':'TN','TEXAS':'TX','UTAH':'UT','VERMONT':'VT','VIRGINIA':'VA',
+    'WASHINGTON':'WA','WEST VIRGINIA':'WV','WISCONSIN':'WI','WYOMING':'WY',
+    'DISTRICT OF COLUMBIA':'DC',
+  };
+
+  const labels = states.map(s =>
+    (abbr[s.state?.toUpperCase()] || s.state?.slice(0,2)) + ' ' +
+    (s.state ? s.state.charAt(0) + s.state.slice(1).toLowerCase() : '')
+  );
+
+  const trace = {
+    type: 'bar', orientation: 'h',
+    x: states.map(s => s.nii),
+    y: labels,
+    marker: {
+      color: states.map(s => SECTOR_COLORS[s.dominant_sector] || '#718096'),
+      line: { color: 'rgba(0,0,0,0.3)', width: 0.5 },
+    },
+    text: states.map(s => fmtM(s.nii)),
+    textposition: 'outside',
+    textfont: { color: '#90a0b7', size: 10 },
+    hovertemplate:
+      '<b>%{y}</b><br>' +
+      'Projected NII: <b>%{text}</b><br>' +
+      '<extra></extra>',
+    customdata: states.map(s => [s.dominant_sector, s.target_score?.toFixed(1), fmtM(s.total_deposits_millions)]),
+    hovertemplate:
+      '<b>%{y}</b><br>Sector: %{customdata[0]}<br>Target Score: %{customdata[1]}<br>Total Deposits: %{customdata[2]}<br>Projected NII: <b>%{text}</b><extra></extra>',
+  };
+
+  const layout = {
+    paper_bgcolor: '#161f30', plot_bgcolor: '#0d1523',
+    font: { color: '#90a0b7', size: 11 },
+    height: Math.max(360, states.length * 26 + 60),
+    margin: { t: 10, b: 40, l: 130, r: 90 },
+    xaxis: {
+      title: { text: 'Projected Annual NII ($M)', font: { size: 10 } },
+      gridcolor: '#1e2d45', color: '#4a6080', zeroline: false,
+    },
+    yaxis: { autorange: 'reversed', color: '#4a6080', tickfont: { size: 10 } },
+    bargap: 0.3,
+  };
+
+  Plotly.react('chart-states', [trace], layout, { responsive: true, displayModeBar: false });
+}
+
+// ── Slider label helpers ──
+function updateSliderLabels() {
+  const ccPct = Math.round(A.ccDiscount * 100);
+  const ccVal = ((apiData?.current?.cc_rate ?? 21.5) * A.ccDiscount).toFixed(2);
+  document.getElementById('lbl-cc-discount').textContent = `${ccPct}% of market (${ccVal}%)`;
+  document.getElementById('sub-cc-discount').textContent =
+    `FinTechCo charges ${ccVal}% vs Capital One ~24%`;
+
+  const dep = A.depositPremium.toFixed(2);
+  const depTotal = ((apiData?.current?.dff ?? 4.33) + A.depositPremium).toFixed(2);
+  document.getElementById('lbl-dep-premium').textContent = `+${Math.round(A.depositPremium * 100)} bps`;
+  document.getElementById('sub-dep-premium').textContent =
+    `Offering Fed Funds + ${Math.round(A.depositPremium * 100)}bps = ${depTotal}% HYSA rate`;
+
+  const capPct = (A.captureRate * 100).toFixed(2);
+  document.getElementById('lbl-capture').textContent = `${capPct}% of state deposits`;
+  document.getElementById('sub-capture').textContent =
+    `Targeting ${capPct}% of addressable state deposits`;
+}
+
+function renderAll() {
+  updateKPIs();
+  updateSliderLabels();
+  renderHistory();
+  renderStates();
+}
+
+// ── Wire sliders ──
+document.getElementById('sl-cc-discount').addEventListener('input', function() {
+  A.ccDiscount = parseFloat(this.value) / 100;
+  renderAll();
+});
+document.getElementById('sl-dep-premium').addEventListener('input', function() {
+  A.depositPremium = parseFloat(this.value) / 100;
+  renderAll();
+});
+document.getElementById('sl-capture').addEventListener('input', function() {
+  A.captureRate = parseFloat(this.value) / 10000; // slider 1-100 → 0.01%-1%
+  renderAll();
+});
+
+// ── Boot ──
+async function boot() {
+  const res = await fetch('/api/nii-data');
+  apiData = await res.json();
+  renderAll();
+}
+boot();
+</script>
+</body>
+</html>

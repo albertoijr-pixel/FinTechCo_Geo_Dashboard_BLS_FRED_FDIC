@@ -95,6 +95,22 @@
     .msg-claude { align-self: flex-start; background: #1e2d45; color: #cbd5e0; border-bottom-left-radius: 2px; }
     .msg-label { font-size: 0.65rem; color: #4a6080; margin-bottom: 3px; }
     .msg-thinking { opacity: 0.5; font-style: italic; }
+    /* Markdown rendering inside Claude chat bubbles */
+    .msg-claude h2,.msg-claude h3 { margin: 0; padding: 0; line-height: 1.35; font-weight: 700; color: #e2e8f0; }
+    .msg-claude h2 { font-size: 0.91em; margin: 11px 0 3px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.14); }
+    .msg-claude h3 { font-size: 0.86em; margin: 8px 0 2px; }
+    .msg-claude p  { margin: 0 0 5px; }
+    .msg-claude ul,.msg-claude ol { padding-left: 16px; margin: 2px 0 7px; }
+    .msg-claude li { margin-bottom: 2px; line-height: 1.55; }
+    .msg-claude strong { color: #e2e8f0; font-weight: 700; }
+    .msg-claude em    { color: #a0b4cc; font-style: italic; }
+    .msg-claude code  { background: rgba(255,255,255,0.09); padding: 1px 4px; border-radius: 3px; font-family: monospace; font-size: 0.88em; color: #90cdf4; }
+    .msg-claude hr    { border: none; border-top: 1px solid rgba(255,255,255,0.11); margin: 7px 0; }
+    .msg-claude table { width: 100%; border-collapse: collapse; font-size: 0.85em; margin: 5px 0 10px; }
+    .msg-claude th    { background: rgba(255,255,255,0.13); color: #e2e8f0; font-weight: 700; padding: 4px 7px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.14); }
+    .msg-claude td    { padding: 3px 7px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .msg-claude tr:last-child td { border-bottom: none; }
+    .msg-claude tr:nth-child(even) td { background: rgba(255,255,255,0.04); }
     .chat-input-row { display: flex; gap: 8px; }
     #chatInput {
       flex: 1; background: #0d1523; border: 1px solid #2a3a5c; color: #e2e8f0;
@@ -123,12 +139,20 @@
   </div>
   <div class="header-sources">
     <div style="display:flex; align-items:center; gap:10px; justify-content:flex-end; margin-bottom:5px;">
-      <a href="/data-model" title="View Data Model" style="
+      <a href="/nii-strategy" target="_blank" rel="noopener" title="NII Strategy Analysis" style="
+        font-size:0.65rem; font-weight:700; letter-spacing:0.06em;
+        color:#68d391; background:rgba(104,211,145,0.12);
+        border:1px solid rgba(104,211,145,0.35); border-radius:20px;
+        padding:3px 11px; text-decoration:none; white-space:nowrap;
+        transition:background 0.15s;
+      " onmouseover="this.style.background='rgba(104,211,145,0.22)'"
+         onmouseout="this.style.background='rgba(104,211,145,0.12)'">NII Strategy</a>
+      <a href="/data-model" target="_blank" rel="noopener" title="View Data Model" style="
         font-size:0.65rem; font-weight:700; letter-spacing:0.06em;
         color:#63b3ed; background:rgba(99,179,237,0.12);
         border:1px solid rgba(99,179,237,0.35); border-radius:20px;
         padding:3px 11px; text-decoration:none; white-space:nowrap;
-        transition:background 0.15s, color 0.15s;
+        transition:background 0.15s;
       " onmouseover="this.style.background='rgba(99,179,237,0.22)'"
          onmouseout="this.style.background='rgba(99,179,237,0.12)'">DM</a>
       <span class="sources-label" style="margin:0;">Data Sources</span>
@@ -491,7 +515,15 @@ async function sendChat() {
       subNote = 'Filters applied to map and table.';
     }
 
-    thinkingBubble.innerHTML = escapeHtml(data.response || 'No response.').replace(/\n/g, '<br>');
+    let responseText = data.response || 'No response.';
+    // Unwrap raw JSON if server-side parse failed
+    if (responseText.trimStart().startsWith('{')) {
+      try { const p = JSON.parse(responseText); if (p?.response) responseText = p.response; }
+      catch (_) { const m = responseText.match(/"response"\s*:\s*"([\s\S]*?)(?:"\s*,\s*"filter_command"|"\s*\})/); if (m) responseText = m[1]; }
+    }
+    responseText = responseText.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    thinkingBubble.dataset.raw = responseText; // used by PDF export
+    thinkingBubble.innerHTML = renderMarkdown(responseText);
     if (subNote) {
       const note = document.createElement('div');
       note.className = 'filter-notice';
@@ -510,6 +542,69 @@ function escapeHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function renderMarkdown(text) {
+  const lines = text.split('\n');
+  const parts = [];
+  let ulBuf = [], olBuf = [], tblBuf = [];
+
+  function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function inline(s) {
+    s = esc(s);
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    return s;
+  }
+  const flushUL  = () => { if (ulBuf.length)  { parts.push('<ul>'  + ulBuf.map(t=>`<li>${t}</li>`).join('') + '</ul>');  ulBuf=[]; } };
+  const flushOL  = () => { if (olBuf.length)  { parts.push('<ol>'  + olBuf.map(t=>`<li>${t}</li>`).join('') + '</ol>');  olBuf=[]; } };
+  const flushTbl = () => {
+    if (!tblBuf.length) return;
+    const [hdr, ...rows] = tblBuf;
+    let h = '<table><thead><tr>' + hdr.map(c=>`<th>${inline(c.trim())}</th>`).join('') + '</tr></thead>';
+    if (rows.length) h += '<tbody>' + rows.map(r=>'<tr>'+r.map(c=>`<td>${inline(c.trim())}</td>`).join('')+'</tr>').join('') + '</tbody>';
+    parts.push(h + '</table>'); tblBuf = [];
+  };
+  const flushAll = () => { flushUL(); flushOL(); };
+
+  for (const raw of lines) {
+    const t = raw.trim();
+
+    if (!t) { flushAll(); flushTbl(); parts.push('<p style="margin:0;height:5px"></p>'); continue; }
+
+    // Markdown table row  |col|col|
+    if (t.startsWith('|') && t.endsWith('|')) {
+      flushAll();
+      const cells = t.split('|').slice(1,-1);
+      if (cells.every(c=>/^[\s\-:]+$/.test(c))) continue; // separator row
+      tblBuf.push(cells); continue;
+    } else flushTbl();
+
+    // ATX headings  # ## ###
+    const hm = t.match(/^(#{1,3})\s+(.*)/);
+    if (hm) { flushAll(); parts.push(`<${hm[1].length===1?'h2':'h3'}>${inline(hm[2])}</${hm[1].length===1?'h2':'h3'}>`); continue; }
+
+    // Full-line  **HEADING**
+    const bh = t.match(/^\*\*([^*]+)\*\*$/);
+    if (bh) { flushAll(); parts.push(`<h3>${esc(bh[1])}</h3>`); continue; }
+
+    // Horizontal rule  ---
+    if (/^-{3,}$/.test(t)) { flushAll(); parts.push('<hr>'); continue; }
+
+    // Unordered bullet  • - *
+    const ul = t.match(/^[•\-\*]\s+(.*)/);
+    if (ul) { flushOL(); flushTbl(); ulBuf.push(inline(ul[1])); continue; }
+
+    // Ordered list  1. 2.
+    const ol = t.match(/^(\d+)[.)]\s+(.*)/);
+    if (ol) { flushUL(); flushTbl(); olBuf.push(inline(ol[2])); continue; }
+
+    flushAll();
+    parts.push(`<p>${inline(t)}</p>`);
+  }
+  flushAll(); flushTbl();
+  return parts.join('');
+}
+
 document.getElementById('sendBtn').addEventListener('click', sendChat);
 document.getElementById('chatInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
@@ -520,8 +615,24 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
   document.querySelectorAll('#chatMessages > div').forEach(wrap => {
     const bubble = wrap.querySelector('.msg');
     if (!bubble) return;
-    const text = (bubble.innerText || bubble.textContent || '').trim();
+    // Prefer data-raw (clean markdown stored at render time) over innerText (rendered HTML)
+    let text = (bubble.dataset.raw || bubble.innerText || bubble.textContent || '').trim();
     if (!text || text === 'Thinking...') return;
+
+    // Fallback: if older bubble has no data-raw and innerText contains raw JSON wrapper
+    if (!bubble.dataset.raw && text.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && parsed.response) text = parsed.response;
+      } catch (_) {
+        const m = text.match(/"response"\s*:\s*"([\s\S]*?)(?:"\s*,\s*"filter_command"|"\s*\})/);
+        if (m) text = m[1];
+      }
+    }
+    // Decode literal \n escape sequences that appear when the raw JSON string
+    // is extracted (backslash-n instead of actual newline U+000A).
+    text = text.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+
     messages.push({ text, time: bubble.dataset.time || '', isUser: bubble.classList.contains('msg-user') });
   });
 
@@ -535,57 +646,152 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
   const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-  // Convert **bold** spans into pdfmake inline text runs
-  function parseInline(text) {
-    const parts = text.split(/(\*\*[^*]+\*\*)/);
-    if (parts.length === 1) return text;
+  // ── Inline markdown → pdfmake runs ──────────────────────────────────────
+  // Handles **bold**, *italic*, `code`
+  function parseInline(raw) {
+    if (typeof raw !== 'string') return raw;
+    const parts = raw.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/);
+    if (parts.length === 1) return raw;
     return parts.filter(p => p !== '').map(p => {
-      const m = p.match(/^\*\*(.+)\*\*$/);
-      return m ? { text: m[1], bold: true } : { text: p };
+      const bold = p.match(/^\*\*(.+)\*\*$/);
+      if (bold) return { text: bold[1], bold: true };
+      const italic = p.match(/^\*(.+)\*$/);
+      if (italic) return { text: italic[1], italics: true, color: '#4a5568' };
+      const code = p.match(/^`(.+)`$/);
+      if (code) return { text: code[1], font: 'Courier', fontSize: 9, background: '#f1f5f9', color: '#1e40af' };
+      return { text: p };
     });
   }
 
-  // Convert markdown-like AI response into structured pdfmake nodes
+  // ── Full markdown → structured pdfmake nodes ─────────────────────────────
   function parseResponse(rawText) {
-    const nodes = [];
-    let listItems = null;
+    const nodes   = [];
+    let ulItems   = null;   // unordered list accumulator
+    let olItems   = null;   // ordered list accumulator
+    let tableRows = null;   // markdown table row accumulator
 
-    const flushList = () => {
-      if (listItems) {
-        nodes.push({ ul: listItems, margin: [8, 0, 0, 8], fontSize: 10.5, color: '#2d3748', lineHeight: 1.6 });
-        listItems = null;
+    const flushUL = () => {
+      if (ulItems && ulItems.length) {
+        nodes.push({ ul: ulItems, fontSize: 10.5, color: '#2d3748', lineHeight: 1.6, margin: [10, 2, 0, 10] });
+        ulItems = null;
       }
+    };
+    const flushOL = () => {
+      if (olItems && olItems.length) {
+        nodes.push({ ol: olItems, fontSize: 10.5, color: '#2d3748', lineHeight: 1.6, margin: [10, 2, 0, 10] });
+        olItems = null;
+      }
+    };
+    const flushAll = () => { flushUL(); flushOL(); };
+
+    const flushTable = () => {
+      if (!tableRows || !tableRows.length) { tableRows = null; return; }
+      const colCount = Math.max(...tableRows.map(r => r.length));
+      nodes.push({
+        table: {
+          headerRows: 1,
+          widths: Array(colCount).fill('*'),
+          body: tableRows.map((row, ri) => {
+            while (row.length < colCount) row.push('');
+            return row.map(cell => ({
+              text: parseInline(cell.trim()) || ' ',
+              fontSize: 9,
+              bold: ri === 0,
+              color: ri === 0 ? '#ffffff' : '#1a202c',
+              fillColor: ri === 0 ? '#1a2744' : (ri % 2 === 0 ? '#f8fafc' : '#ffffff'),
+              margin: [6, 5, 6, 5],
+            }));
+          }),
+        },
+        layout: {
+          defaultBorder: false,
+          hLineWidth: (i) => (i === 0 || i === 1 || i === tableRows.length) ? 0.5 : 0,
+          hLineColor: () => '#cbd5e0',
+          vLineWidth: () => 0,
+        },
+        margin: [0, 6, 0, 14],
+      });
+      tableRows = null;
     };
 
     for (const raw of rawText.split('\n')) {
-      const line = raw.trim();
-      if (!line) { flushList(); continue; }
+      const line    = raw.trimEnd();
+      const trimmed = line.trim();
 
-      // Full-line **SECTION HEADING**
-      const headingMatch = line.match(/^\*\*(.+)\*\*$/);
-      if (headingMatch) {
-        flushList();
-        nodes.push({ text: headingMatch[1], bold: true, fontSize: 11.5, color: '#1a2744', margin: [0, 12, 0, 3] });
+      // ── Blank line ──
+      if (!trimmed) {
+        flushAll(); flushTable();
+        nodes.push({ text: ' ', fontSize: 3, margin: [0, 0, 0, 3] });
+        continue;
+      }
+
+      // ── Markdown table row  |col|col| ──
+      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+        flushAll();
+        // Skip separator rows  |---|---|
+        if (/^\|[\s\-:|]+\|$/.test(trimmed.replace(/\|[\s\-:]+\|/g, '|x|'))) continue;
+        const cells = trimmed.split('|').slice(1, -1);
+        if (!tableRows) tableRows = [];
+        tableRows.push(cells);
+        continue;
+      } else {
+        flushTable();
+      }
+
+      // ── ATX headings  # ## ### ──
+      const hMatch = trimmed.match(/^(#{1,3})\s+(.*)/);
+      if (hMatch) {
+        flushAll();
+        const level = hMatch[1].length;
+        const sz    = level === 1 ? 13.5 : level === 2 ? 12 : 11;
+        nodes.push({ text: parseInline(hMatch[2]), bold: true, fontSize: sz, color: '#0f172a', margin: [0, level === 1 ? 16 : 12, 0, 3] });
+        nodes.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: 467, y2: 0, lineWidth: level === 1 ? 1 : 0.5, lineColor: level === 1 ? '#93c5fd' : '#cbd5e0' }], margin: [0, 0, 0, 6] });
+        continue;
+      }
+
+      // ── Full-line **HEADING** (Claude often uses this style) ──
+      const boldHead = trimmed.match(/^\*\*([^*]+)\*\*$/);
+      if (boldHead) {
+        flushAll();
+        nodes.push({ text: boldHead[1], bold: true, fontSize: 11.5, color: '#0f172a', margin: [0, 12, 0, 3] });
         nodes.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: 467, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e0' }], margin: [0, 0, 0, 6] });
         continue;
       }
 
-      // Bullet point: •, -, or *
-      const bulletMatch = line.match(/^[•\-\*]\s+(.*)/);
-      if (bulletMatch) {
-        if (!listItems) listItems = [];
-        listItems.push({ text: parseInline(bulletMatch[1]), color: '#2d3748', lineHeight: 1.6 });
+      // ── Horizontal rule  --- ──
+      if (/^-{3,}$/.test(trimmed)) {
+        flushAll();
+        nodes.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: 467, y2: 0, lineWidth: 0.5, lineColor: '#e2e8f0' }], margin: [0, 6, 0, 8] });
         continue;
       }
 
-      flushList();
-      nodes.push({ text: parseInline(line), fontSize: 10.5, color: '#2d3748', lineHeight: 1.65, margin: [0, 0, 0, 5] });
+      // ── Unordered bullet  • - * ──
+      const ulMatch = trimmed.match(/^[•\-\*]\s+(.*)/);
+      if (ulMatch) {
+        flushOL(); flushTable();
+        if (!ulItems) ulItems = [];
+        ulItems.push({ text: parseInline(ulMatch[1]), lineHeight: 1.6 });
+        continue;
+      }
+
+      // ── Ordered list  1. 2. ──
+      const olMatch = trimmed.match(/^(\d+)[.)]\s+(.*)/);
+      if (olMatch) {
+        flushUL(); flushTable();
+        if (!olItems) olItems = [];
+        olItems.push({ text: parseInline(olMatch[2]), lineHeight: 1.6 });
+        continue;
+      }
+
+      flushAll();
+      nodes.push({ text: parseInline(trimmed), fontSize: 10.5, color: '#2d3748', lineHeight: 1.65, margin: [0, 0, 0, 4] });
     }
 
-    flushList();
+    flushAll(); flushTable();
     return nodes;
   }
 
+  // ── Message block renderers ───────────────────────────────────────────────
   function promptBlock(m) {
     return {
       stack: [

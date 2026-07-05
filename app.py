@@ -5,6 +5,7 @@ import pandas as pd
 import anthropic
 from flask import Flask, render_template, jsonify, request, Response
 from dotenv import load_dotenv
+from data_fetcher import fetch_fred_rates
 
 load_dotenv()
 
@@ -35,6 +36,25 @@ def index():
 @app.route('/data-model')
 def data_model():
     return render_template('data_model.html')
+
+
+@app.route('/nii-strategy')
+def nii_strategy():
+    return render_template('nii_strategy.html')
+
+
+@app.route('/api/nii-data')
+def nii_data():
+    fred_key = os.getenv('FRED_API_KEY', '')
+    rates = fetch_fred_rates(fred_key)
+    df = load_data()
+    cols = ['state', 'target_score', 'total_deposits_millions',
+            'dominant_sector', 'max_annual_wage', 'nonint_to_total_ratio']
+    cols = [c for c in cols if c in df.columns]
+    return jsonify({
+        **rates,
+        'states': df[cols].where(pd.notnull(df), None).to_dict('records'),
+    })
 
 
 @app.route('/api/data')
@@ -100,7 +120,7 @@ def chat():
         ai_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
         resp = ai_client.messages.create(
             model='claude-sonnet-4-6',
-            max_tokens=1024,
+            max_tokens=4096,
             system=system_prompt,
             messages=[{'role': 'user', 'content': message}],
         )
